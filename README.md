@@ -1,50 +1,55 @@
-# Welcome to your Expo app 👋
+# Chamada EBD
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Front-end mobile para chamada da Escola Biblica Dominical, desenvolvido com Expo SDK 54 + Expo Router.
 
-## Get started
+## O que ja esta pronto
 
-1. Install dependencies
+- Cadastro de turmas
+- Cadastro de alunos por turma
+- Cadastro de professores
+- Registro de chamada com selecao obrigatoria do professor
+- Edicao de chamada
+- Exclusao de chamada
+- Exclusao de aluno
+- Exclusao de turma
+- Dashboard com resumo de turmas, alunos, professores e chamadas
 
-   ```bash
-   npm install
-   ```
+## Tecnologias
 
-2. Start the app
+- Expo SDK 54
+- Expo Router (file-based routing)
+- React Native 0.81
+- React 19
+- Reanimated 4
+- TypeScript
 
-   ```bash
-   npx expo start
-   ```
+## Rodando o projeto
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+1. Instale dependencias:
 
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. Inicie o app:
 
-## Learn more
+```bash
+npx expo start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+3. Abra no Android, iOS ou web usando os atalhos exibidos no terminal.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Estrutura principal
 
-## Join the community
+- `app/(tabs)/index.tsx`: dashboard
+- `app/(tabs)/turmas.tsx`: CRUD de turmas e alunos
+- `app/(tabs)/professores.tsx`: CRUD de professores
+- `app/(tabs)/chamadas.tsx`: registro/edicao/historico de chamada
+- `context/school-data-context.tsx`: estado global local (memoria)
 
-Join our community of developers creating universal apps.
+## Proximos passos sugeridos
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- Persistencia local (AsyncStorage ou SQLite)
+- Exportacao de relatorios em PDF
+- Sincronizacao com backend
+- Login e controle de perfis (admin/professor)

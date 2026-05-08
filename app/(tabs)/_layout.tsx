@@ -1,33 +1,63 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AppPalette, AppTypography } from '@/constants/ui';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: AppPalette.primary,
+        tabBarInactiveTintColor: '#6C7886',
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarStyle: {
+          borderTopWidth: 0,
+          backgroundColor: '#FFFCF7',
+          height: 64,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontFamily: AppTypography.bodyStrong,
+          fontSize: 11,
+        },
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Resumo',
+          tabBarIcon: ({ color }) => <MaterialIcons size={24} name="dashboard" color={color} />,
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="turmas"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Turmas',
+          tabBarIcon: ({ color }) => <MaterialIcons size={24} name="groups" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="chamadas"
+        options={{
+          title: 'Chamada',
+          tabBarIcon: ({ color }) => <MaterialIcons size={24} name="fact-check" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="professores"
+        options={{
+          title: 'Profs',
+          tabBarIcon: ({ color }) => <MaterialIcons size={24} name="badge" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="config"
+        options={{
+          title: 'Config',
+          tabBarIcon: ({ color }) => <MaterialIcons size={24} name="tune" color={color} />,
         }}
       />
     </Tabs>

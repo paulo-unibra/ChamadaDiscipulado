@@ -1,98 +1,198 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { ScreenShell } from '@/components/app/screen-shell';
+import { EmptyMessage, SectionCard, TinyBadge } from '@/components/app/ui';
+import { useSchoolData } from '@/context/school-data-context';
+import { AppPalette, AppTypography } from '@/constants/ui';
 
-export default function HomeScreen() {
+function todayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export default function DashboardScreen() {
+  const { classes, teachers, attendanceRecords } = useSchoolData();
+
+  const stats = useMemo(() => {
+    const studentsCount = classes.reduce((total, classGroup) => total + classGroup.students.length, 0);
+    const todayCount = attendanceRecords.filter((record) => record.date === todayDate()).length;
+
+    return {
+      classesCount: classes.length,
+      teachersCount: teachers.length,
+      studentsCount,
+      todayCount,
+    };
+  }, [classes, teachers, attendanceRecords]);
+
+  const latestRecords = attendanceRecords.slice(0, 4);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <ScreenShell
+      title="Chamada EBD"
+      subtitle="Visao geral da escola biblica: turmas, professores e historico de presenca.">
+      <Animated.View entering={FadeInDown.delay(50).duration(500)}>
+        <SectionCard title="Painel rapido" description="Leitura imediata para o inicio da aula.">
+          <View style={styles.statsGrid}>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{stats.classesCount}</Text>
+              <Text style={styles.statLabel}>Turmas</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{stats.studentsCount}</Text>
+              <Text style={styles.statLabel}>Alunos</Text>
+            </View>
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>{stats.teachersCount}</Text>
+              <Text style={styles.statLabel}>Professores</Text>
+            </View>
+            <View style={styles.statBoxHighlight}>
+              <Text style={styles.statValueHighlight}>{stats.todayCount}</Text>
+              <Text style={styles.statLabelHighlight}>Chamadas hoje</Text>
+            </View>
+          </View>
+        </SectionCard>
+      </Animated.View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <Animated.View entering={FadeInDown.delay(120).duration(500)}>
+        <SectionCard
+          title="Ultimas chamadas"
+          description="Toque na aba Chamada para editar ou registrar uma nova.">
+          {latestRecords.length === 0 ? (
+            <EmptyMessage
+              title="Nenhuma chamada registrada"
+              description="Assim que voce registrar a primeira chamada, ela aparece aqui."
+            />
+          ) : (
+            latestRecords.map((record) => {
+              const className = classes.find((item) => item.id === record.classId)?.name ?? 'Turma removida';
+              const teacherName =
+                teachers.find((item) => item.id === record.teacherId)?.name ?? 'Professor removido';
+
+              const presentCount = record.entries.filter((entry) => entry.status === 'present').length;
+              const absentCount = record.entries.filter((entry) => entry.status === 'absent').length;
+              const justifiedCount = record.entries.filter((entry) => entry.status === 'justified').length;
+
+              return (
+                <View key={record.id} style={styles.recordItem}>
+                  <View style={styles.recordHeader}>
+                    <Text style={styles.recordTitle}>{className}</Text>
+                    <TinyBadge label={record.date} tone="neutral" />
+                  </View>
+                  <Text style={styles.recordSubtitle}>Professor: {teacherName}</Text>
+                  <View style={styles.recordBadges}>
+                    <TinyBadge label={`P: ${presentCount}`} tone="success" />
+                    <TinyBadge label={`F: ${absentCount}`} tone="danger" />
+                    <TinyBadge label={`J: ${justifiedCount}`} tone="primary" />
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </SectionCard>
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(180).duration(500)}>
+        <SectionCard title="Fluxo sugerido" description="Ordem ideal para usar o app no culto dominical.">
+          <View style={styles.flowLine}>
+            <Text style={styles.flowStep}>1) Cadastre os professores</Text>
+            <Text style={styles.flowStep}>2) Crie as turmas e adicione alunos</Text>
+            <Text style={styles.flowStep}>3) Registre a chamada selecionando o professor da aula</Text>
+            <Text style={styles.flowStep}>4) Edite chamadas anteriores quando precisar corrigir</Text>
+          </View>
+        </SectionCard>
+      </Animated.View>
+    </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  statsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  statBox: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: AppPalette.border,
+    borderRadius: 14,
+    width: '48%',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    gap: 2,
+  },
+  statBoxHighlight: {
+    backgroundColor: AppPalette.primary,
+    borderWidth: 1,
+    borderColor: AppPalette.primary,
+    borderRadius: 14,
+    width: '48%',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    gap: 2,
+  },
+  statValue: {
+    fontSize: 28,
+    color: AppPalette.ink,
+    fontFamily: AppTypography.title,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: AppPalette.inkMuted,
+    fontFamily: AppTypography.bodyStrong,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  statValueHighlight: {
+    fontSize: 28,
+    color: '#FFFFFF',
+    fontFamily: AppTypography.title,
+  },
+  statLabelHighlight: {
+    fontSize: 12,
+    color: '#DCEEFF',
+    fontFamily: AppTypography.bodyStrong,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  recordItem: {
+    borderWidth: 1,
+    borderColor: AppPalette.border,
+    borderRadius: 14,
+    padding: 10,
+    backgroundColor: '#FFFFFF',
+    gap: 6,
+  },
+  recordHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  recordTitle: {
+    flex: 1,
+    fontSize: 15,
+    color: AppPalette.ink,
+    fontFamily: AppTypography.bodyStrong,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  recordSubtitle: {
+    fontSize: 13,
+    color: AppPalette.inkMuted,
+    fontFamily: AppTypography.body,
+  },
+  recordBadges: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  flowLine: {
+    gap: 7,
+  },
+  flowStep: {
+    color: AppPalette.ink,
+    fontSize: 14,
+    fontFamily: AppTypography.body,
+    lineHeight: 20,
   },
 });
