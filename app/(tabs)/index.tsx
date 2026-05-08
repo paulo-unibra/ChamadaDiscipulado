@@ -12,26 +12,25 @@ function todayDate() {
 }
 
 export default function DashboardScreen() {
-  const { classes, teachers, attendanceRecords } = useSchoolData();
+  const { classes, teachers, students, attendanceRecords, modeLabel } = useSchoolData();
 
   const stats = useMemo(() => {
-    const studentsCount = classes.reduce((total, classGroup) => total + classGroup.students.length, 0);
     const todayCount = attendanceRecords.filter((record) => record.date === todayDate()).length;
 
     return {
       classesCount: classes.length,
       teachersCount: teachers.length,
-      studentsCount,
+      studentsCount: students.length,
       todayCount,
     };
-  }, [classes, teachers, attendanceRecords]);
+  }, [classes, teachers, students, attendanceRecords]);
 
   const latestRecords = attendanceRecords.slice(0, 4);
 
   return (
     <ScreenShell
       title="Chamada EBD"
-      subtitle="Visao geral da escola biblica: turmas, professores e historico de presenca.">
+      subtitle={`Visao geral da escola biblica: turmas, professores e historico de presenca. Modo: ${modeLabel}.`}>
       <Animated.View entering={FadeInDown.delay(50).duration(500)}>
         <SectionCard title="Painel rapido" description="Leitura imediata para o inicio da aula.">
           <View style={styles.statsGrid}>
@@ -68,11 +67,16 @@ export default function DashboardScreen() {
             latestRecords.map((record) => {
               const className = classes.find((item) => item.id === record.classId)?.name ?? 'Turma removida';
               const teacherName =
-                teachers.find((item) => item.id === record.teacherId)?.name ?? 'Professor removido';
+                record.teacherIds.length === 0
+                  ? 'Professor removido'
+                  : record.teacherIds
+                      .map((teacherId) => teachers.find((item) => item.id === teacherId)?.name ?? 'Removido')
+                      .join(', ');
 
               const presentCount = record.entries.filter((entry) => entry.status === 'present').length;
               const absentCount = record.entries.filter((entry) => entry.status === 'absent').length;
               const justifiedCount = record.entries.filter((entry) => entry.status === 'justified').length;
+              const lateCount = record.entries.filter((entry) => entry.status === 'late').length;
 
               return (
                 <View key={record.id} style={styles.recordItem}>
@@ -85,6 +89,7 @@ export default function DashboardScreen() {
                     <TinyBadge label={`P: ${presentCount}`} tone="success" />
                     <TinyBadge label={`F: ${absentCount}`} tone="danger" />
                     <TinyBadge label={`J: ${justifiedCount}`} tone="primary" />
+                    <TinyBadge label={`A: ${lateCount}`} tone="neutral" />
                   </View>
                 </View>
               );
@@ -97,9 +102,9 @@ export default function DashboardScreen() {
         <SectionCard title="Fluxo sugerido" description="Ordem ideal para usar o app no culto dominical.">
           <View style={styles.flowLine}>
             <Text style={styles.flowStep}>1) Cadastre os professores</Text>
-            <Text style={styles.flowStep}>2) Crie as turmas e adicione alunos</Text>
-            <Text style={styles.flowStep}>3) Registre a chamada selecionando o professor da aula</Text>
-            <Text style={styles.flowStep}>4) Edite chamadas anteriores quando precisar corrigir</Text>
+            <Text style={styles.flowStep}>2) Crie as turmas e associe alunos (um aluno pode estar em varias turmas)</Text>
+            <Text style={styles.flowStep}>3) Registre a chamada selecionando um ou mais professores da aula</Text>
+            <Text style={styles.flowStep}>4) Edite chamadas anteriores e gere relatorios para secretaria</Text>
           </View>
         </SectionCard>
       </Animated.View>

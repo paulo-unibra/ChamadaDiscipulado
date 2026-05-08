@@ -54,10 +54,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="config"
+        name="relatorios"
         options={{
-          title: 'Config',
-          tabBarIcon: ({ color }) => <MaterialIcons size={24} name="tune" color={color} />,
+          title: 'Relatorios',
+          tabBarIcon: ({ color }) => <MaterialIcons size={24} name="assessment" color={color} />,
         }}
       />
     </Tabs>

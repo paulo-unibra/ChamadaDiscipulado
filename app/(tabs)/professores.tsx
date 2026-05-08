@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ScreenShell } from '@/components/app/screen-shell';
@@ -16,7 +16,7 @@ import { useSchoolData } from '@/context/school-data-context';
 import { AppPalette, AppTypography } from '@/constants/ui';
 
 export default function TeachersScreen() {
-  const { teachers, createTeacher, deleteTeacher } = useSchoolData();
+  const { teachers, createTeacher, getTeacherDeleteImpact, deleteTeacher } = useSchoolData();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
 
@@ -26,10 +26,29 @@ export default function TeachersScreen() {
     setPhone('');
   };
 
+  const onDeleteTeacher = (teacherId: string, teacherName: string) => {
+    const impact = getTeacherDeleteImpact(teacherId);
+
+    Alert.alert(
+      'Apagar professor?',
+      `${teacherName} sera removido do cadastro. ${impact.attendanceCount} chamada(s) ficarao sem este professor.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Apagar mesmo assim',
+          style: 'destructive',
+          onPress: () => {
+            deleteTeacher(teacherId);
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <ScreenShell
       title="Professores"
-      subtitle="Cadastre os professores da EBD para vincular cada chamada ao responsavel da aula.">
+      subtitle="Cadastre os professores da EBD para vincular cada chamada a um ou mais responsaveis da aula.">
       <Animated.View entering={FadeInDown.duration(450)}>
         <SectionCard title="Novo professor" description="Nome e contato rapido para referencia da secretaria.">
           <View>
@@ -64,15 +83,19 @@ export default function TeachersScreen() {
             />
           ) : (
             teachers.map((teacher) => (
-              <View key={teacher.id} style={styles.teacherRow}>
-                <View style={styles.teacherMain}>
-                  <Text style={styles.teacherName}>{teacher.name}</Text>
-                  <Text style={styles.teacherPhone}>{teacher.phone || 'Sem telefone informado'}</Text>
+                <View key={teacher.id} style={styles.teacherRow}>
+                  <View style={styles.teacherMain}>
+                    <Text style={styles.teacherName}>{teacher.name}</Text>
+                    <Text style={styles.teacherPhone}>{teacher.phone || 'Sem telefone informado'}</Text>
+                  </View>
+                  <TinyBadge label="Ativo" tone="success" />
+                  <ButtonGhost
+                    title="Apagar"
+                    tone="danger"
+                    onPress={() => onDeleteTeacher(teacher.id, teacher.name)}
+                  />
                 </View>
-                <TinyBadge label="Ativo" tone="success" />
-                <ButtonGhost title="Apagar" tone="danger" onPress={() => deleteTeacher(teacher.id)} />
-              </View>
-            ))
+              ))
           )}
         </SectionCard>
       </Animated.View>

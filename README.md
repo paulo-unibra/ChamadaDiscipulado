@@ -5,13 +5,16 @@ Front-end mobile para chamada da Escola Biblica Dominical, desenvolvido com Expo
 ## O que ja esta pronto
 
 - Cadastro de turmas
-- Cadastro de alunos por turma
+- Cadastro completo de alunos (dados pessoais e responsavel)
+- Vinculo de aluno em multiplas turmas
 - Cadastro de professores
-- Registro de chamada com selecao obrigatoria do professor
-- Edicao de chamada
-- Exclusao de chamada
-- Exclusao de aluno
-- Exclusao de turma
+- Registro de chamada com selecao obrigatoria de um ou mais professores
+- Status de chamada: presente, falta, justificada e atrasado
+- Observacao por aluno na chamada
+- Edicao e exclusao de chamada
+- Aviso de impacto ao apagar turma/professor (sem bloqueio)
+- Importacao de alunos por CSV (modo mock)
+- Area exclusiva de relatorios e exportacoes (modo mock)
 - Dashboard com resumo de turmas, alunos, professores e chamadas
 
 ## Tecnologias
@@ -42,14 +45,15 @@ npx expo start
 ## Estrutura principal
 
 - `app/(tabs)/index.tsx`: dashboard
-- `app/(tabs)/turmas.tsx`: CRUD de turmas e alunos
+- `app/(tabs)/turmas.tsx`: turmas, cadastro de aluno, vinculos multi-turma e importacao CSV
 - `app/(tabs)/professores.tsx`: CRUD de professores
-- `app/(tabs)/chamadas.tsx`: registro/edicao/historico de chamada
-- `context/school-data-context.tsx`: estado global local (memoria)
+- `app/(tabs)/chamadas.tsx`: chamada com multiplos professores, status atrasado e observacao por aluno
+- `app/(tabs)/relatorios.tsx`: espaco de relatorios/exportacoes
+- `context/school-data-context.tsx`: estado global em memoria com API mock online
 
 ## Proximos passos sugeridos
 
-- Persistencia local (AsyncStorage ou SQLite)
-- Exportacao de relatorios em PDF
-- Sincronizacao com backend
-- Login e controle de perfis (admin/professor)
+- Integrar com API real (online)
+- Implementar exportacao real em PDF/Excel/WhatsApp
+- Criar filtros avancados de relatorio por periodo, turma e professor
+- Evoluir importacao CSV com validacao visual por linha

@@ -19,26 +19,41 @@ import {
 } from '@/context/school-data-context';
 import { AppPalette, AppTypography } from '@/constants/ui';
 
-type EntryMap = Record<string, AttendanceStatus>;
+type EntryMap = Record<string, { status: AttendanceStatus; note: string }>;
 
 function todayDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function buildEntriesMap(classGroup: ClassGroup | undefined, initial?: EntryMap): EntryMap {
+function isValidDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function toggleId(values: string[], id: string) {
+  return values.includes(id) ? values.filter((item) => item !== id) : [...values, id];
+}
+
+function buildEntriesMap(
+  classGroup: ClassGroup | undefined,
+  studentIds: string[],
+  initial?: EntryMap
+): EntryMap {
   if (!classGroup) {
     return {};
   }
 
   const mapped: EntryMap = {};
-  classGroup.students.forEach((student) => {
-    mapped[student.id] = initial?.[student.id] ?? 'present';
+  classGroup.studentIds.forEach((studentId) => {
+    if (!studentIds.includes(studentId)) {
+      return;
+    }
+
+    mapped[studentId] = {
+      status: initial?.[studentId]?.status ?? 'present',
+      note: initial?.[studentId]?.note ?? '',
+    };
   });
   return mapped;
-}
-
-function isValidDate(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
 function StatusButton({
@@ -49,7 +64,7 @@ function StatusButton({
 }: {
   active: boolean;
   label: string;
-  tone: 'success' | 'danger' | 'neutral';
+  tone: 'success' | 'danger' | 'neutral' | 'warning';
   onPress: () => void;
 }) {
   return (
@@ -60,6 +75,7 @@ function StatusButton({
         tone === 'success' ? styles.statusSuccess : null,
         tone === 'danger' ? styles.statusDanger : null,
         tone === 'neutral' ? styles.statusNeutral : null,
+        tone === 'warning' ? styles.statusWarning : null,
         active ? styles.statusActive : null,
         pressed ? styles.pressed : null,
       ]}>
@@ -69,10 +85,17 @@ function StatusButton({
 }
 
 export default function AttendanceScreen() {
-  const { classes, teachers, attendanceRecords, saveAttendance, deleteAttendance } = useSchoolData();
+  const {
+    classes,
+    teachers,
+    attendanceRecords,
+    saveAttendance,
+    deleteAttendance,
+    getStudentsForClass,
+  } = useSchoolData();
 
   const [selectedClassId, setSelectedClassId] = useState('');
-  const [selectedTeacherId, setSelectedTeacherId] = useState('');
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
   const [attendanceDate, setAttendanceDate] = useState(todayDate());
   const [notes, setNotes] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -83,12 +106,21 @@ export default function AttendanceScreen() {
     [classes, selectedClassId]
   );
 
+  const classStudents = useMemo(() => {
+    if (!selectedClassId) {
+      return [];
+    }
+
+    return getStudentsForClass(selectedClassId);
+  }, [getStudentsForClass, selectedClassId]);
+
   const summary = useMemo(() => {
-    const values = Object.values(entriesByStudent);
+    const values = Object.values(entriesByStudent).map((item) => item.status);
     return {
       present: values.filter((item) => item === 'present').length,
       absent: values.filter((item) => item === 'absent').length,
       justified: values.filter((item) => item === 'justified').length,
+      late: values.filter((item) => item === 'late').length,
     };
   }, [entriesByStudent]);
 
@@ -104,15 +136,21 @@ export default function AttendanceScreen() {
   }, [classes, selectedClassId]);
 
   useEffect(() => {
-    if (!selectedTeacherId && teachers.length > 0) {
-      setSelectedTeacherId(teachers[0].id);
+    if (teachers.length === 0) {
+      setSelectedTeacherIds([]);
       return;
     }
 
-    if (selectedTeacherId && !teachers.some((teacher) => teacher.id === selectedTeacherId)) {
-      setSelectedTeacherId(teachers[0]?.id ?? '');
+    if (selectedTeacherIds.length === 0) {
+      setSelectedTeacherIds([teachers[0].id]);
+      return;
     }
-  }, [teachers, selectedTeacherId]);
+
+    const validIds = selectedTeacherIds.filter((teacherId) => teachers.some((teacher) => teacher.id === teacherId));
+    if (validIds.length !== selectedTeacherIds.length) {
+      setSelectedTeacherIds(validIds.length > 0 ? validIds : [teachers[0].id]);
+    }
+  }, [teachers, selectedTeacherIds]);
 
   useEffect(() => {
     if (!selectedClass) {
@@ -120,49 +158,55 @@ export default function AttendanceScreen() {
       return;
     }
 
-    setEntriesByStudent((previous) => {
-      const next = buildEntriesMap(selectedClass, previous);
-      const previousIds = Object.keys(previous).sort().join('|');
-      const nextIds = Object.keys(next).sort().join('|');
+    const visibleStudentIds = classStudents.map((student) => student.id);
 
-      if (previousIds === nextIds) {
-        const hasDiff = Object.keys(next).some((id) => next[id] !== previous[id]);
-        if (!hasDiff) {
-          return previous;
-        }
+    setEntriesByStudent((previous) => {
+      const next = buildEntriesMap(selectedClass, visibleStudentIds, previous);
+      const previousKeys = Object.keys(previous).sort().join('|');
+      const nextKeys = Object.keys(next).sort().join('|');
+
+      if (previousKeys !== nextKeys) {
+        return next;
       }
 
-      return next;
+      const changed = Object.keys(next).some(
+        (key) => next[key].status !== previous[key]?.status || next[key].note !== previous[key]?.note
+      );
+
+      return changed ? next : previous;
     });
-  }, [selectedClass]);
+  }, [selectedClass, classStudents]);
 
   const clearForm = () => {
     setEditingId(null);
     setAttendanceDate(todayDate());
     setNotes('');
-    setEntriesByStudent(buildEntriesMap(selectedClass));
+    const visibleStudentIds = classStudents.map((student) => student.id);
+    setEntriesByStudent(buildEntriesMap(selectedClass, visibleStudentIds));
   };
 
   const onPickClass = (classId: string) => {
     setSelectedClassId(classId);
     const target = classes.find((item) => item.id === classId);
-    setEntriesByStudent(buildEntriesMap(target));
+    const targetStudents = getStudentsForClass(classId);
+    setEntriesByStudent(buildEntriesMap(target, targetStudents.map((student) => student.id)));
   };
 
   const onSave = () => {
-    if (!selectedClassId || !selectedTeacherId || !selectedClass) {
+    if (!selectedClassId || selectedTeacherIds.length === 0 || !selectedClass) {
       return;
     }
 
     saveAttendance({
       id: editingId ?? undefined,
       classId: selectedClassId,
-      teacherId: selectedTeacherId,
+      teacherIds: selectedTeacherIds,
       date: attendanceDate,
       notes,
-      entries: selectedClass.students.map((student) => ({
+      entries: classStudents.map((student) => ({
         studentId: student.id,
-        status: entriesByStudent[student.id] ?? 'present',
+        status: entriesByStudent[student.id]?.status ?? 'present',
+        note: entriesByStudent[student.id]?.note ?? '',
       })),
     });
 
@@ -176,29 +220,34 @@ export default function AttendanceScreen() {
     }
 
     const classGroup = classes.find((item) => item.id === record.classId);
-    const entriesMap = Object.fromEntries(record.entries.map((entry) => [entry.studentId, entry.status])) as EntryMap;
+    const classStudentIds = getStudentsForClass(record.classId).map((student) => student.id);
+    const entriesMap = Object.fromEntries(
+      record.entries.map((entry) => [entry.studentId, { status: entry.status, note: entry.note }])
+    ) as EntryMap;
+
+    const safeTeacherIds = record.teacherIds.filter((teacherId) =>
+      teachers.some((teacher) => teacher.id === teacherId)
+    );
 
     setEditingId(record.id);
     setSelectedClassId(record.classId);
-    setSelectedTeacherId(
-      teachers.some((teacher) => teacher.id === record.teacherId) ? record.teacherId : teachers[0]?.id ?? ''
-    );
+    setSelectedTeacherIds(safeTeacherIds.length > 0 ? safeTeacherIds : teachers[0] ? [teachers[0].id] : []);
     setAttendanceDate(record.date);
     setNotes(record.notes);
-    setEntriesByStudent(buildEntriesMap(classGroup, entriesMap));
+    setEntriesByStudent(buildEntriesMap(classGroup, classStudentIds, entriesMap));
   };
 
   const saveDisabled =
-    !selectedClass || !selectedTeacherId || selectedClass.students.length === 0 || !isValidDate(attendanceDate);
+    !selectedClass || selectedTeacherIds.length === 0 || classStudents.length === 0 || !isValidDate(attendanceDate);
 
   return (
     <ScreenShell
       title="Chamada"
-      subtitle="Registre a presenca por turma e selecione qual professor ministrou a aula.">
+      subtitle="Registre a presenca por turma, com um ou mais professores, status atrasado e observacao por aluno.">
       <Animated.View entering={FadeInDown.duration(460)}>
         <SectionCard
           title={editingId ? 'Editar chamada' : 'Nova chamada'}
-          description="Professor e turma sao obrigatorios para registrar.">
+          description="Turma e pelo menos um professor sao obrigatorios para salvar.">
           {classes.length === 0 ? (
             <EmptyMessage
               title="Sem turmas cadastradas"
@@ -238,26 +287,25 @@ export default function AttendanceScreen() {
           </View>
 
           <View>
-            <FieldLabel>Professor da aula</FieldLabel>
+            <FieldLabel>Professores da aula (multiplos)</FieldLabel>
             <View style={styles.chipWrap}>
-              {teachers.map((teacher) => (
-                <Pressable
-                  key={teacher.id}
-                  onPress={() => setSelectedTeacherId(teacher.id)}
-                  style={({ pressed }) => [
-                    styles.selectionChip,
-                    selectedTeacherId === teacher.id ? styles.selectionChipActive : null,
-                    pressed ? styles.pressed : null,
-                  ]}>
-                  <Text
-                    style={[
-                      styles.selectionChipText,
-                      selectedTeacherId === teacher.id ? styles.selectionChipTextActive : null,
+              {teachers.map((teacher) => {
+                const active = selectedTeacherIds.includes(teacher.id);
+                return (
+                  <Pressable
+                    key={teacher.id}
+                    onPress={() => setSelectedTeacherIds((previous) => toggleId(previous, teacher.id))}
+                    style={({ pressed }) => [
+                      styles.selectionChip,
+                      active ? styles.selectionChipActive : null,
+                      pressed ? styles.pressed : null,
                     ]}>
-                    {teacher.name}
-                  </Text>
-                </Pressable>
-              ))}
+                    <Text style={[styles.selectionChipText, active ? styles.selectionChipTextActive : null]}>
+                      {teacher.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
 
@@ -276,11 +324,11 @@ export default function AttendanceScreen() {
           </View>
 
           <View>
-            <FieldLabel>Observacoes (opcional)</FieldLabel>
+            <FieldLabel>Observacoes gerais (opcional)</FieldLabel>
             <AppInput
               value={notes}
               onChangeText={setNotes}
-              placeholder="Ex.: visitante na turma, aula especial, etc."
+              placeholder="Ex.: classe com visitantes, atividade externa, etc."
               multiline
               numberOfLines={3}
               style={{ minHeight: 80, textAlignVertical: 'top' }}
@@ -291,43 +339,74 @@ export default function AttendanceScreen() {
             <TinyBadge label={`Presentes: ${summary.present}`} tone="success" />
             <TinyBadge label={`Faltas: ${summary.absent}`} tone="danger" />
             <TinyBadge label={`Justif.: ${summary.justified}`} tone="primary" />
+            <TinyBadge label={`Atrasados: ${summary.late}`} tone="neutral" />
           </View>
 
           {selectedClass ? (
             <View style={styles.studentWrap}>
               <FieldLabel>Lista da turma</FieldLabel>
-              {selectedClass.students.length === 0 ? (
-                <Text style={styles.noStudents}>Esta turma ainda nao possui alunos cadastrados.</Text>
+              {classStudents.length === 0 ? (
+                <Text style={styles.noStudents}>Esta turma ainda nao possui alunos vinculados.</Text>
               ) : (
-                selectedClass.students.map((student) => (
+                classStudents.map((student) => (
                   <View key={student.id} style={styles.studentRow}>
                     <Text style={styles.studentName}>{student.name}</Text>
                     <View style={styles.studentActions}>
                       <StatusButton
-                        active={entriesByStudent[student.id] === 'present'}
+                        active={entriesByStudent[student.id]?.status === 'present'}
                         label="P"
                         tone="success"
                         onPress={() =>
-                          setEntriesByStudent((previous) => ({ ...previous, [student.id]: 'present' }))
+                          setEntriesByStudent((previous) => ({
+                            ...previous,
+                            [student.id]: { status: 'present', note: previous[student.id]?.note ?? '' },
+                          }))
                         }
                       />
                       <StatusButton
-                        active={entriesByStudent[student.id] === 'absent'}
+                        active={entriesByStudent[student.id]?.status === 'absent'}
                         label="F"
                         tone="danger"
                         onPress={() =>
-                          setEntriesByStudent((previous) => ({ ...previous, [student.id]: 'absent' }))
+                          setEntriesByStudent((previous) => ({
+                            ...previous,
+                            [student.id]: { status: 'absent', note: previous[student.id]?.note ?? '' },
+                          }))
                         }
                       />
                       <StatusButton
-                        active={entriesByStudent[student.id] === 'justified'}
+                        active={entriesByStudent[student.id]?.status === 'justified'}
                         label="J"
                         tone="neutral"
                         onPress={() =>
-                          setEntriesByStudent((previous) => ({ ...previous, [student.id]: 'justified' }))
+                          setEntriesByStudent((previous) => ({
+                            ...previous,
+                            [student.id]: { status: 'justified', note: previous[student.id]?.note ?? '' },
+                          }))
+                        }
+                      />
+                      <StatusButton
+                        active={entriesByStudent[student.id]?.status === 'late'}
+                        label="A"
+                        tone="warning"
+                        onPress={() =>
+                          setEntriesByStudent((previous) => ({
+                            ...previous,
+                            [student.id]: { status: 'late', note: previous[student.id]?.note ?? '' },
+                          }))
                         }
                       />
                     </View>
+                    <AppInput
+                      value={entriesByStudent[student.id]?.note ?? ''}
+                      onChangeText={(value) =>
+                        setEntriesByStudent((previous) => ({
+                          ...previous,
+                          [student.id]: { status: previous[student.id]?.status ?? 'present', note: value },
+                        }))
+                      }
+                      placeholder="Observacao do aluno (opcional)"
+                    />
                   </View>
                 ))
               )}
@@ -348,7 +427,7 @@ export default function AttendanceScreen() {
       <Animated.View entering={FadeInDown.delay(100).duration(460)}>
         <SectionCard
           title="Historico"
-          description="Use editar para corrigir presencas e observacoes de aulas anteriores.">
+          description="Use editar para corrigir presencas, professores ou observacoes de aulas anteriores.">
           {attendanceRecords.length === 0 ? (
             <EmptyMessage
               title="Sem historico"
@@ -357,12 +436,17 @@ export default function AttendanceScreen() {
           ) : (
             attendanceRecords.map((record) => {
               const className = classes.find((item) => item.id === record.classId)?.name ?? 'Turma removida';
-              const teacherName =
-                teachers.find((item) => item.id === record.teacherId)?.name ?? 'Professor removido';
+              const teacherNames =
+                record.teacherIds.length === 0
+                  ? 'Professor removido'
+                  : record.teacherIds
+                      .map((teacherId) => teachers.find((item) => item.id === teacherId)?.name ?? 'Removido')
+                      .join(', ');
 
               const presentCount = record.entries.filter((entry) => entry.status === 'present').length;
               const absentCount = record.entries.filter((entry) => entry.status === 'absent').length;
               const justifiedCount = record.entries.filter((entry) => entry.status === 'justified').length;
+              const lateCount = record.entries.filter((entry) => entry.status === 'late').length;
 
               return (
                 <View key={record.id} style={styles.historyItem}>
@@ -370,12 +454,13 @@ export default function AttendanceScreen() {
                     <Text style={styles.historyTitle}>{className}</Text>
                     <TinyBadge label={record.date} tone="neutral" />
                   </View>
-                  <Text style={styles.historySub}>Professor: {teacherName}</Text>
-                  {record.notes ? <Text style={styles.historyNotes}>Obs: {record.notes}</Text> : null}
+                  <Text style={styles.historySub}>Professores: {teacherNames}</Text>
+                  {record.notes ? <Text style={styles.historyNotes}>Obs geral: {record.notes}</Text> : null}
                   <View style={styles.rowBadges}>
                     <TinyBadge label={`P: ${presentCount}`} tone="success" />
                     <TinyBadge label={`F: ${absentCount}`} tone="danger" />
                     <TinyBadge label={`J: ${justifiedCount}`} tone="primary" />
+                    <TinyBadge label={`A: ${lateCount}`} tone="neutral" />
                   </View>
                   <View style={styles.historyActions}>
                     <ButtonGhost title="Editar" tone="success" onPress={() => onEdit(record.id)} />
@@ -442,16 +527,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
     padding: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     gap: 8,
   },
   studentName: {
     flex: 1,
     color: AppPalette.ink,
     fontSize: 14,
-    fontFamily: AppTypography.body,
+    fontFamily: AppTypography.bodyStrong,
   },
   studentActions: {
     flexDirection: 'row',
@@ -474,6 +556,9 @@ const styles = StyleSheet.create({
   },
   statusNeutral: {
     backgroundColor: '#F2ECE1',
+  },
+  statusWarning: {
+    backgroundColor: AppPalette.accentSoft,
   },
   statusActive: {
     borderColor: AppPalette.primary,
