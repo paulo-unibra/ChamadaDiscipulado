@@ -137,24 +137,34 @@ export default function AttendanceScreen() {
 
   useEffect(() => {
     if (teachers.length === 0) {
-      setSelectedTeacherIds([]);
+      setSelectedTeacherIds((previous) => (previous.length === 0 ? previous : []));
       return;
     }
 
     if (selectedTeacherIds.length === 0) {
-      setSelectedTeacherIds([teachers[0].id]);
+      const fallbackTeacherId = teachers[0].id;
+      setSelectedTeacherIds((previous) =>
+        previous.length === 1 && previous[0] === fallbackTeacherId ? previous : [fallbackTeacherId]
+      );
       return;
     }
 
     const validIds = selectedTeacherIds.filter((teacherId) => teachers.some((teacher) => teacher.id === teacherId));
     if (validIds.length !== selectedTeacherIds.length) {
-      setSelectedTeacherIds(validIds.length > 0 ? validIds : [teachers[0].id]);
+      const normalized = validIds.length > 0 ? validIds : [teachers[0].id];
+      setSelectedTeacherIds((previous) => {
+        if (previous.length === normalized.length && previous.every((id, index) => id === normalized[index])) {
+          return previous;
+        }
+
+        return normalized;
+      });
     }
   }, [teachers, selectedTeacherIds]);
 
   useEffect(() => {
     if (!selectedClass) {
-      setEntriesByStudent({});
+      setEntriesByStudent((previous) => (Object.keys(previous).length === 0 ? previous : {}));
       return;
     }
 
