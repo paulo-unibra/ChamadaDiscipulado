@@ -1,4 +1,6 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+
+import { API_BASE_URL } from '@/constants/api';
 
 export type Student = {
   id: string;
@@ -19,6 +21,7 @@ export type ClassGroup = {
   description: string;
   studentIds: string[];
   createdAt: string;
+  lessonNames: string[];
 };
 
 export type Teacher = {
@@ -39,12 +42,21 @@ export type AttendanceEntry = {
 export type AttendanceRecord = {
   id: string;
   classId: string;
+  lessonName: string;
   teacherIds: string[];
   date: string;
   notes: string;
   entries: AttendanceEntry[];
   createdAt: string;
   updatedAt: string;
+};
+
+type SchoolStatePayload = {
+  classes: ClassGroup[];
+  discipleshipLessons?: string[];
+  students: Student[];
+  teachers: Teacher[];
+  attendanceRecords: AttendanceRecord[];
 };
 
 type CreateStudentInput = {
@@ -62,6 +74,7 @@ type CreateStudentInput = {
 type SaveAttendanceInput = {
   id?: string;
   classId: string;
+  lessonName: string;
   teacherIds: string[];
   date: string;
   notes: string;
@@ -83,8 +96,39 @@ type DeleteTeacherImpact = {
   attendanceCount: number;
 };
 
+type MutationResult = {
+  success: boolean;
+  message?: string;
+};
+
+const DEFAULT_DISCIPLESHIP_LESSONS = [
+  'INTRODUCAO AO DISCIPULADO',
+  'HISTORIA DAS ASSEMBLEIAS DE DEUS',
+  'TENDO UMA NOVA CONDUTA',
+  'SUPERANDO CONFLITOS E DUVIDAS',
+  'INTRODUCAO A BIBLIA',
+  'CONHECENDO JESUS',
+  'O PLANO DE DEUS PARA A HUMANIDADE',
+  'O QUE E SALVACAO?',
+  'O QUE E PECADO?',
+  'SANTIFICACAO',
+  'OBEDIENCIA',
+  'ORACAO',
+  'O FRUTO DO ESPIRITO',
+  'MORDOMIA CRISTA',
+  'A IGREJA',
+  'DOUTRINAS, COSTUMES, E NORMAS DA IGREJA',
+  'O BATISMO COM ESPIRITO SANTO',
+  'TRINDADE DIVINA',
+  'HERESIAS',
+  'FINAL DOS TEMPOS',
+  'ORDENANCAS BIBLICAS',
+  'EVANGELISMO',
+] as const;
+
 type SchoolDataContextValue = {
   classes: ClassGroup[];
+  discipleshipLessons: string[];
   students: Student[];
   teachers: Teacher[];
   attendanceRecords: AttendanceRecord[];
@@ -97,10 +141,10 @@ type SchoolDataContextValue = {
   assignStudentToClass: (classId: string, studentId: string) => void;
   removeStudentFromClass: (classId: string, studentId: string) => void;
   importStudentsFromCsv: (csvText: string, classIds: string[]) => ImportResult;
-  createTeacher: (name: string, phone: string) => void;
+  createTeacher: (name: string, phone: string) => Promise<MutationResult>;
   getTeacherDeleteImpact: (teacherId: string) => DeleteTeacherImpact;
   deleteTeacher: (teacherId: string) => DeleteTeacherImpact;
-  saveAttendance: (input: SaveAttendanceInput) => void;
+  saveAttendance: (input: SaveAttendanceInput) => Promise<MutationResult>;
   deleteAttendance: (attendanceId: string) => void;
   getStudentsForClass: (classId: string) => Student[];
   getClassesForStudent: (studentId: string) => ClassGroup[];
@@ -156,13 +200,72 @@ function normalizeHeader(value: string) {
   return value.trim().toLowerCase();
 }
 
+async function parseResponse<T>(response: Response) {
+  const text = await response.text();
+  let parsed: unknown = {};
+
+  if (text) {
+    try {
+      parsed = JSON.parse(text) as T;
+    } catch {
+      parsed = { message: text };
+    }
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof parsed === 'object' && parsed !== null && 'message' in parsed
+        ? String((parsed as { message?: string }).message ?? 'Erro na API')
+        : `Erro HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  return parsed as T;
+}
+
+async function fetchSchoolState() {
+  const response = await fetch(`${API_BASE_URL}/school/state`, {
+    headers: { Accept: 'application/json' },
+  });
+
+  return parseResponse<SchoolStatePayload>(response);
+}
+
 export function SchoolDataProvider({ children }: { children: ReactNode }) {
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [discipleshipLessons, setDiscipleshipLessons] = useState<string[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
 
-  const modeLabel = 'Online (API mock)';
+  const modeLabel = `Online (API ${API_BASE_URL})`;
+
+  const applyState = (payload: SchoolStatePayload) => {
+    const fallbackLessons =
+      payload.discipleshipLessons ?? payload.classes?.[0]?.lessonNames ?? [...DEFAULT_DISCIPLESHIP_LESSONS];
+    const normalizedClasses = (payload.classes ?? []).map((classGroup) => ({
+      ...classGroup,
+      lessonNames: classGroup.lessonNames ?? fallbackLessons,
+    }));
+
+    setClasses(normalizedClasses);
+    setDiscipleshipLessons(payload.discipleshipLessons ?? normalizedClasses[0]?.lessonNames ?? []);
+    setStudents(payload.students ?? []);
+    setTeachers(payload.teachers ?? []);
+    setAttendanceRecords(payload.attendanceRecords ?? []);
+  };
+
+  const syncState = async () => {
+    const payload = await fetchSchoolState();
+    applyState(payload);
+  };
+
+  useEffect(() => {
+    syncState().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Erro ao sincronizar estado';
+      console.warn('[school-data] sync error:', message);
+    });
+  }, []);
 
   const studentsMap = useMemo(
     () => Object.fromEntries(students.map((student) => [student.id, student])),
@@ -175,16 +278,20 @@ export function SchoolDataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setClasses((previous) => [
-      {
-        id: makeId('class'),
-        name: trimmedName,
-        description: description.trim(),
-        studentIds: [],
-        createdAt: nowIso(),
+    fetch(`${API_BASE_URL}/school/classes`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
-      ...previous,
-    ]);
+      body: JSON.stringify({ name: trimmedName, description: description.trim() }),
+    })
+      .then((response) => parseResponse<SchoolStatePayload>(response))
+      .then((payload) => applyState(payload))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Erro ao criar turma';
+        console.warn('[school-data] createClass error:', message);
+      });
   };
 
   const getClassDeleteImpact = (classId: string): DeleteClassImpact => {
@@ -198,8 +305,17 @@ export function SchoolDataProvider({ children }: { children: ReactNode }) {
   const deleteClass = (classId: string): DeleteClassImpact => {
     const impact = getClassDeleteImpact(classId);
 
-    setClasses((previous) => previous.filter((item) => item.id !== classId));
-    setAttendanceRecords((previous) => previous.filter((item) => item.classId !== classId));
+    fetch(`${API_BASE_URL}/school/classes/${classId}`, {
+      method: 'DELETE',
+      headers: { Accept: 'application/json' },
+    })
+      .then((response) => parseResponse<SchoolStatePayload>(response))
+      .then((payload) => applyState(payload))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Erro ao apagar turma';
+        console.warn('[school-data] deleteClass error:', message);
+      });
+
     return impact;
   };
 
@@ -210,101 +326,80 @@ export function SchoolDataProvider({ children }: { children: ReactNode }) {
     }
 
     const studentId = makeId('student');
-    const nextStudent: Student = {
-      id: studentId,
-      name: trimmedName,
-      birthDate: input.birthDate.trim(),
-      studentPhone: input.studentPhone.trim(),
-      email: input.email.trim(),
-      guardianName: input.guardianName.trim(),
-      guardianPhone: input.guardianPhone.trim(),
-      address: input.address.trim(),
-      notes: input.notes.trim(),
-      createdAt: nowIso(),
-    };
 
-    setStudents((previous) => [nextStudent, ...previous]);
-
-    const uniqueClassIds = unique(input.classIds.filter(Boolean));
-    if (uniqueClassIds.length > 0) {
-      setClasses((previous) =>
-        previous.map((classGroup) => {
-          if (!uniqueClassIds.includes(classGroup.id) || classGroup.studentIds.includes(studentId)) {
-            return classGroup;
-          }
-
-          return {
-            ...classGroup,
-            studentIds: [...classGroup.studentIds, studentId],
-          };
-        })
-      );
-    }
+    fetch(`${API_BASE_URL}/school/students`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: trimmedName,
+        birthDate: input.birthDate,
+        studentPhone: input.studentPhone,
+        email: input.email,
+        guardianName: input.guardianName,
+        guardianPhone: input.guardianPhone,
+        address: input.address,
+        notes: input.notes,
+        classIds: unique(input.classIds.filter(Boolean)),
+      }),
+    })
+      .then((response) => parseResponse<SchoolStatePayload>(response))
+      .then((payload) => applyState(payload))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Erro ao criar aluno';
+        console.warn('[school-data] createStudent error:', message);
+      });
 
     return studentId;
   };
 
   const deleteStudent = (studentId: string) => {
-    setStudents((previous) => previous.filter((student) => student.id !== studentId));
-
-    setClasses((previous) =>
-      previous.map((classGroup) => ({
-        ...classGroup,
-        studentIds: classGroup.studentIds.filter((id) => id !== studentId),
-      }))
-    );
-
-    setAttendanceRecords((previous) =>
-      previous.map((record) => ({
-        ...record,
-        entries: record.entries.filter((entry) => entry.studentId !== studentId),
-        updatedAt: nowIso(),
-      }))
-    );
+    fetch(`${API_BASE_URL}/school/students/${studentId}`, {
+      method: 'DELETE',
+      headers: { Accept: 'application/json' },
+    })
+      .then((response) => parseResponse<SchoolStatePayload>(response))
+      .then((payload) => applyState(payload))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Erro ao apagar aluno';
+        console.warn('[school-data] deleteStudent error:', message);
+      });
   };
 
   const assignStudentToClass = (classId: string, studentId: string) => {
-    setClasses((previous) =>
-      previous.map((classGroup) => {
-        if (classGroup.id !== classId || classGroup.studentIds.includes(studentId)) {
-          return classGroup;
-        }
-
-        return {
-          ...classGroup,
-          studentIds: [...classGroup.studentIds, studentId],
-        };
-      })
-    );
+    fetch(`${API_BASE_URL}/school/students/assign`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ classId, studentId }),
+    })
+      .then((response) => parseResponse<SchoolStatePayload>(response))
+      .then((payload) => applyState(payload))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Erro ao vincular aluno';
+        console.warn('[school-data] assignStudentToClass error:', message);
+      });
   };
 
   const removeStudentFromClass = (classId: string, studentId: string) => {
-    setClasses((previous) =>
-      previous.map((classGroup) => {
-        if (classGroup.id !== classId) {
-          return classGroup;
-        }
-
-        return {
-          ...classGroup,
-          studentIds: classGroup.studentIds.filter((id) => id !== studentId),
-        };
-      })
-    );
-
-    setAttendanceRecords((previous) =>
-      previous.map((record) => {
-        if (record.classId !== classId) {
-          return record;
-        }
-
-        return {
-          ...record,
-          entries: record.entries.filter((entry) => entry.studentId !== studentId),
-          updatedAt: nowIso(),
-        };
-      })
-    );
+    fetch(`${API_BASE_URL}/school/students/remove`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ classId, studentId }),
+    })
+      .then((response) => parseResponse<SchoolStatePayload>(response))
+      .then((payload) => applyState(payload))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Erro ao remover aluno da turma';
+        console.warn('[school-data] removeStudentFromClass error:', message);
+      });
   };
 
   const importStudentsFromCsv = (csvText: string, classIds: string[]) => {
@@ -387,24 +482,26 @@ export function SchoolDataProvider({ children }: { children: ReactNode }) {
       };
     }
 
-    setStudents((previous) => [...importedStudents, ...previous]);
-
     const uniqueClassIds = unique(classIds.filter(Boolean));
-    if (uniqueClassIds.length > 0) {
-      const importedIds = importedStudents.map((student) => student.id);
-      setClasses((previous) =>
-        previous.map((classGroup) => {
-          if (!uniqueClassIds.includes(classGroup.id)) {
-            return classGroup;
-          }
-
-          return {
-            ...classGroup,
-            studentIds: unique([...classGroup.studentIds, ...importedIds]),
-          };
-        })
-      );
-    }
+    importedStudents.forEach((student) => {
+      fetch(`${API_BASE_URL}/school/students`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...student,
+          classIds: uniqueClassIds,
+        }),
+      })
+        .then((response) => parseResponse<SchoolStatePayload>(response))
+        .then((payload) => applyState(payload))
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : 'Erro ao importar aluno';
+          console.warn('[school-data] importStudentsFromCsv error:', message);
+        });
+    });
 
     return {
       created: importedStudents.length,
@@ -413,21 +510,38 @@ export function SchoolDataProvider({ children }: { children: ReactNode }) {
     };
   };
 
-  const createTeacher = (name: string, phone: string) => {
+  const createTeacher = async (name: string, phone: string): Promise<MutationResult> => {
     const trimmedName = name.trim();
     if (!trimmedName) {
-      return;
+      return {
+        success: false,
+        message: 'Nome do professor eh obrigatorio.',
+      };
     }
 
-    setTeachers((previous) => [
-      {
-        id: makeId('teacher'),
-        name: trimmedName,
-        phone: phone.trim(),
-        createdAt: nowIso(),
-      },
-      ...previous,
-    ]);
+    try {
+      const response = await fetch(`${API_BASE_URL}/school/teachers`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: trimmedName, phone: phone.trim() }),
+      });
+
+      const payload = await parseResponse<SchoolStatePayload>(response);
+      applyState(payload);
+
+      return { success: true };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erro ao criar professor';
+      console.warn('[school-data] createTeacher error:', message);
+
+      return {
+        success: false,
+        message,
+      };
+    }
   };
 
   const getTeacherDeleteImpact = (teacherId: string): DeleteTeacherImpact => ({
@@ -437,62 +551,71 @@ export function SchoolDataProvider({ children }: { children: ReactNode }) {
   const deleteTeacher = (teacherId: string): DeleteTeacherImpact => {
     const impact = getTeacherDeleteImpact(teacherId);
 
-    setTeachers((previous) => previous.filter((item) => item.id !== teacherId));
-    setAttendanceRecords((previous) =>
-      previous.map((record) => ({
-        ...record,
-        teacherIds: record.teacherIds.filter((id) => id !== teacherId),
-        updatedAt: nowIso(),
-      }))
-    );
+    fetch(`${API_BASE_URL}/school/teachers/${teacherId}`, {
+      method: 'DELETE',
+      headers: { Accept: 'application/json' },
+    })
+      .then((response) => parseResponse<SchoolStatePayload>(response))
+      .then((payload) => applyState(payload))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Erro ao apagar professor';
+        console.warn('[school-data] deleteTeacher error:', message);
+      });
+
     return impact;
   };
 
-  const saveAttendance = (input: SaveAttendanceInput) => {
-    const stamp = nowIso();
+  const saveAttendance = async (input: SaveAttendanceInput): Promise<MutationResult> => {
     const uniqueTeacherIds = unique(input.teacherIds.filter(Boolean));
 
-    setAttendanceRecords((previous) => {
-      const normalized = {
-        classId: input.classId,
-        teacherIds: uniqueTeacherIds,
-        date: input.date,
-        notes: input.notes.trim(),
-        entries: input.entries.map((entry) => ({
-          studentId: entry.studentId,
-          status: entry.status,
-          note: entry.note.trim(),
-        })),
-      };
-
-      if (input.id) {
-        return previous.map((record) => {
-          if (record.id !== input.id) {
-            return record;
-          }
-
-          return {
-            ...record,
-            ...normalized,
-            updatedAt: stamp,
-          };
-        });
-      }
-
-      return [
-        {
-          id: makeId('attendance'),
-          ...normalized,
-          createdAt: stamp,
-          updatedAt: stamp,
+    try {
+      const response = await fetch(`${API_BASE_URL}/school/attendance`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
         },
-        ...previous,
-      ];
-    });
+        body: JSON.stringify({
+          id: input.id,
+          classId: input.classId,
+          lessonName: input.lessonName,
+          teacherIds: uniqueTeacherIds,
+          date: input.date,
+          notes: input.notes.trim(),
+          entries: input.entries.map((entry) => ({
+            studentId: entry.studentId,
+            status: entry.status,
+            note: entry.note.trim(),
+          })),
+        }),
+      });
+
+      const payload = await parseResponse<SchoolStatePayload>(response);
+      applyState(payload);
+
+      return { success: true };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erro ao salvar chamada';
+      console.warn('[school-data] saveAttendance error:', message);
+
+      return {
+        success: false,
+        message,
+      };
+    }
   };
 
   const deleteAttendance = (attendanceId: string) => {
-    setAttendanceRecords((previous) => previous.filter((item) => item.id !== attendanceId));
+    fetch(`${API_BASE_URL}/school/attendance/${attendanceId}`, {
+      method: 'DELETE',
+      headers: { Accept: 'application/json' },
+    })
+      .then((response) => parseResponse<SchoolStatePayload>(response))
+      .then((payload) => applyState(payload))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : 'Erro ao apagar chamada';
+        console.warn('[school-data] deleteAttendance error:', message);
+      });
   };
 
   const getStudentsForClass = (classId: string) => {
@@ -512,6 +635,7 @@ export function SchoolDataProvider({ children }: { children: ReactNode }) {
   const value = useMemo<SchoolDataContextValue>(
     () => ({
       classes,
+      discipleshipLessons,
       students,
       teachers,
       attendanceRecords,
@@ -532,7 +656,7 @@ export function SchoolDataProvider({ children }: { children: ReactNode }) {
       getStudentsForClass,
       getClassesForStudent,
     }),
-    [classes, students, teachers, attendanceRecords]
+    [classes, discipleshipLessons, students, teachers, attendanceRecords]
   );
 
   return <SchoolDataContext.Provider value={value}>{children}</SchoolDataContext.Provider>;

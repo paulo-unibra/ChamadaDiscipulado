@@ -11,8 +11,31 @@ function todayDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function formatDateToBr(value: string) {
+  const trimmed = value.trim();
+  const brMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (brMatch) {
+    return trimmed;
+  }
+
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return trimmed;
+  }
+
+  const day = String(parsed.getUTCDate()).padStart(2, '0');
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+  const year = String(parsed.getUTCFullYear());
+  return `${day}/${month}/${year}`;
+}
+
 export default function DashboardScreen() {
-  const { classes, teachers, students, attendanceRecords, modeLabel } = useSchoolData();
+  const { classes, discipleshipLessons, teachers, students, attendanceRecords, modeLabel } = useSchoolData();
 
   const stats = useMemo(() => {
     const todayCount = attendanceRecords.filter((record) => record.date === todayDate()).length;
@@ -82,7 +105,7 @@ export default function DashboardScreen() {
                 <View key={record.id} style={styles.recordItem}>
                   <View style={styles.recordHeader}>
                     <Text style={styles.recordTitle}>{className}</Text>
-                    <TinyBadge label={record.date} tone="neutral" />
+                    <TinyBadge label={formatDateToBr(record.date)} tone="neutral" />
                   </View>
                   <Text style={styles.recordSubtitle}>Professor: {teacherName}</Text>
                   <View style={styles.recordBadges}>
@@ -102,8 +125,8 @@ export default function DashboardScreen() {
         <SectionCard title="Fluxo sugerido" description="Ordem ideal para usar o app no culto dominical.">
           <View style={styles.flowLine}>
             <Text style={styles.flowStep}>1) Cadastre os professores</Text>
-            <Text style={styles.flowStep}>2) Crie as turmas e associe alunos (um aluno pode estar em varias turmas)</Text>
-            <Text style={styles.flowStep}>3) Registre a chamada selecionando um ou mais professores da aula</Text>
+            <Text style={styles.flowStep}>2) Crie as turmas e associe alunos (a grade de {discipleshipLessons.length} aulas e fixa)</Text>
+            <Text style={styles.flowStep}>3) Registre a chamada por turma, selecionando um ou mais professores da aula</Text>
             <Text style={styles.flowStep}>4) Edite chamadas anteriores e gere relatorios para secretaria</Text>
           </View>
         </SectionCard>

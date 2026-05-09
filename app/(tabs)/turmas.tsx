@@ -44,6 +44,7 @@ function toggleId(values: string[], id: string) {
 export default function ClassGroupsScreen() {
   const {
     classes,
+    discipleshipLessons,
     students,
     attendanceRecords,
     createClass,
@@ -86,25 +87,6 @@ export default function ClassGroupsScreen() {
     setSelectedClassIdsForStudent([]);
   };
 
-  const onDeleteClass = (classId: string) => {
-    const impact = getClassDeleteImpact(classId);
-
-    Alert.alert(
-      'Apagar turma?',
-      `Isso removera ${impact.attendanceCount} chamadas e desvinculara ${impact.studentsLinked} alunos desta turma.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Apagar mesmo assim',
-          style: 'destructive',
-          onPress: () => {
-            deleteClass(classId);
-          },
-        },
-      ]
-    );
-  };
-
   const onDeleteStudent = (studentId: string, studentName: string) => {
     const linkedClasses = getClassesForStudent(studentId).length;
 
@@ -118,6 +100,25 @@ export default function ClassGroupsScreen() {
           style: 'destructive',
           onPress: () => {
             deleteStudent(studentId);
+          },
+        },
+      ]
+    );
+  };
+
+  const onDeleteClass = (classId: string) => {
+    const impact = getClassDeleteImpact(classId);
+
+    Alert.alert(
+      'Apagar turma?',
+      `Isso removera ${impact.attendanceCount} chamadas e desvinculara ${impact.studentsLinked} alunos desta turma.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Apagar mesmo assim',
+          style: 'destructive',
+          onPress: () => {
+            deleteClass(classId);
           },
         },
       ]
@@ -153,9 +154,9 @@ export default function ClassGroupsScreen() {
   return (
     <ScreenShell
       title="Turmas"
-      subtitle="Crie turmas, mantenha cadastro completo de alunos e vincule cada aluno em varias turmas.">
+      subtitle="Crie turmas e vincule alunos. Cada turma segue a grade fixa de aulas do discipulado.">
       <Animated.View entering={FadeInDown.duration(450)}>
-        <SectionCard title="Nova turma" description="Comece montando as classes por faixa etaria ou departamento.">
+        <SectionCard title="Nova turma" description="Monte as turmas por faixa etaria, sala ou departamento.">
           <View>
             <FieldLabel>Nome da turma</FieldLabel>
             <AppInput
@@ -178,7 +179,26 @@ export default function ClassGroupsScreen() {
         </SectionCard>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(90).duration(450)}>
+      <Animated.View entering={FadeInDown.delay(70).duration(450)}>
+        <SectionCard
+          title="Grade fixa de aulas"
+          description="Toda turma cadastrada usa automaticamente esta sequencia de aulas do discipulado.">
+          <TinyBadge label={`Total de aulas: ${discipleshipLessons.length}`} tone="primary" />
+          {discipleshipLessons.length === 0 ? (
+            <Text style={styles.studentEmpty}>Nao foi possivel carregar a lista de aulas.</Text>
+          ) : (
+            <View style={styles.lessonList}>
+              {discipleshipLessons.map((lessonName, index) => (
+                <Text key={lessonName} style={styles.lessonItem}>
+                  {index + 1}. {lessonName}
+                </Text>
+              ))}
+            </View>
+          )}
+        </SectionCard>
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(140).duration(450)}>
         <SectionCard
           title="Cadastro completo de aluno"
           description="Dados principais do aluno e do responsavel para secretaria e acompanhamento.">
@@ -294,7 +314,7 @@ export default function ClassGroupsScreen() {
         </SectionCard>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(150).duration(450)}>
+      <Animated.View entering={FadeInDown.delay(210).duration(450)}>
         <SectionCard
           title="Importacao CSV"
           description="Cole CSV com colunas: nome,nascimento,telefone,email,responsavel,telefone_responsavel,endereco,observacoes">
@@ -337,7 +357,7 @@ export default function ClassGroupsScreen() {
         </SectionCard>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(210).duration(450)}>
+      <Animated.View entering={FadeInDown.delay(270).duration(450)}>
         <SectionCard
           title="Alunos cadastrados"
           description="Toque nas chips de turma para adicionar/remover o aluno em varias turmas.">
@@ -395,14 +415,14 @@ export default function ClassGroupsScreen() {
         </SectionCard>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(260).duration(450)}>
+      <Animated.View entering={FadeInDown.delay(330).duration(450)}>
         <SectionCard
           title="Turmas cadastradas"
           description="Visao de cada turma com alerta de impacto antes de apagar.">
           {classes.length === 0 ? (
             <EmptyMessage
               title="Sem turmas ainda"
-              description="Crie a primeira turma para habilitar o cadastro de alunos e a chamada."
+              description="Crie a primeira turma para iniciar as aulas do discipulado."
             />
           ) : (
             classes.map((classGroup) => {
@@ -500,6 +520,15 @@ const styles = StyleSheet.create({
     color: AppPalette.ink,
     fontSize: 13,
     fontFamily: AppTypography.bodyStrong,
+  },
+  lessonList: {
+    gap: 6,
+  },
+  lessonItem: {
+    color: AppPalette.ink,
+    fontSize: 13,
+    fontFamily: AppTypography.body,
+    lineHeight: 19,
   },
   studentCard: {
     borderWidth: 1,

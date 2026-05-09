@@ -1,0 +1,4 @@
+const DEFAULT_NETWORK_API_BASE_URL = 'http://192.168.1.3:3333';
+
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || DEFAULT_NETWORK_API_BASE_URL;

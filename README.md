@@ -5,6 +5,7 @@ Front-end mobile para chamada da Escola Biblica Dominical, desenvolvido com Expo
 ## O que ja esta pronto
 
 - Cadastro de turmas
+- Grade fixa de 22 aulas do discipulado (aplicada automaticamente a toda turma)
 - Cadastro completo de alunos (dados pessoais e responsavel)
 - Vinculo de aluno em multiplas turmas
 - Cadastro de professores
@@ -45,7 +46,7 @@ npx expo start
 ## Estrutura principal
 
 - `app/(tabs)/index.tsx`: dashboard
-- `app/(tabs)/turmas.tsx`: turmas, cadastro de aluno, vinculos multi-turma e importacao CSV
+- `app/(tabs)/turmas.tsx`: turmas, grade fixa de aulas, cadastro de aluno, vinculos multi-turma e importacao CSV
 - `app/(tabs)/professores.tsx`: CRUD de professores
 - `app/(tabs)/chamadas.tsx`: chamada com multiplos professores, status atrasado e observacao por aluno
 - `app/(tabs)/relatorios.tsx`: espaco de relatorios/exportacoes
