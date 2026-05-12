@@ -1,19 +1,24 @@
 import env from '#start/env'
 import * as coreEncryption from '@adonisjs/core/encryption'
-import * as packageEncryption from '@adonisjs/encryption'
 
-type EncryptionConfig = {
-  secret: string
+const encryptionModule = coreEncryption as unknown as {
+  defineConfig?: (config: unknown) => unknown
+  drivers?: {
+    chacha20?: (config: { id: string; keys: string[] }) => unknown
+  }
 }
 
-type DefineConfig = (config: EncryptionConfig) => unknown
+const modernConfig =
+  encryptionModule.defineConfig && encryptionModule.drivers?.chacha20
+    ? encryptionModule.defineConfig({
+        default: 'chacha',
+        list: {
+          chacha: encryptionModule.drivers.chacha20({
+            id: 'chacha',
+            keys: [env.get('APP_KEY')],
+          }),
+        },
+      })
+    : null
 
-const defineConfig =
-  (coreEncryption as { defineConfig?: DefineConfig }).defineConfig ??
-  (packageEncryption as { defineConfig?: DefineConfig }).defineConfig
-
-const config: EncryptionConfig = {
-  secret: env.get('APP_KEY'),
-}
-
-export default defineConfig ? defineConfig(config) : config
+export default modernConfig ?? { secret: env.get('APP_KEY') }
