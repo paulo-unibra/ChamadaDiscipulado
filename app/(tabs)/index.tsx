@@ -1,11 +1,11 @@
-import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useMemo } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
-import { ScreenShell } from '@/components/app/screen-shell';
-import { EmptyMessage, SectionCard, TinyBadge } from '@/components/app/ui';
-import { useSchoolData } from '@/context/school-data-context';
-import { AppPalette, AppTypography } from '@/constants/ui';
+import { ScreenShell } from "@/components/app/screen-shell";
+import { EmptyMessage, SectionCard, TinyBadge } from "@/components/app/ui";
+import { AppPalette, AppTypography } from "@/constants/ui";
+import { useSchoolData } from "@/context/school-data-context";
 
 function todayDate() {
   return new Date().toISOString().slice(0, 10);
@@ -28,17 +28,26 @@ function formatDateToBr(value: string) {
     return trimmed;
   }
 
-  const day = String(parsed.getUTCDate()).padStart(2, '0');
-  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getUTCDate()).padStart(2, "0");
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
   const year = String(parsed.getUTCFullYear());
   return `${day}/${month}/${year}`;
 }
 
 export default function DashboardScreen() {
-  const { classes, discipleshipLessons, teachers, students, attendanceRecords, modeLabel } = useSchoolData();
+  const {
+    classes,
+    discipleshipLessons,
+    teachers,
+    students,
+    attendanceRecords,
+    modeLabel,
+  } = useSchoolData();
 
   const stats = useMemo(() => {
-    const todayCount = attendanceRecords.filter((record) => record.date === todayDate()).length;
+    const todayCount = attendanceRecords.filter(
+      (record) => record.date === todayDate(),
+    ).length;
 
     return {
       classesCount: classes.length,
@@ -53,9 +62,13 @@ export default function DashboardScreen() {
   return (
     <ScreenShell
       title="Chamada EBD"
-      subtitle={`Visão geral da escola bíblica: turmas, professores e histórico de presença. Modo: ${modeLabel}.`}>
+      subtitle={`Visão geral da escola bíblica: turmas, professores e histórico de presença. Modo: ${modeLabel}.`}
+    >
       <Animated.View entering={FadeInDown.delay(50).duration(500)}>
-        <SectionCard title="Painel rápido" description="Leitura imediata para o início da aula.">
+        <SectionCard
+          title="Painel rápido"
+          description="Leitura imediata para o início da aula."
+        >
           <View style={styles.statsGrid}>
             <View style={styles.statBox}>
               <Text style={styles.statValue}>{stats.classesCount}</Text>
@@ -80,7 +93,8 @@ export default function DashboardScreen() {
       <Animated.View entering={FadeInDown.delay(120).duration(500)}>
         <SectionCard
           title="Últimas chamadas"
-          description="Toque na aba Chamada para editar ou registrar uma nova.">
+          description="Toque na aba Chamada para editar ou registrar uma nova."
+        >
           {latestRecords.length === 0 ? (
             <EmptyMessage
               title="Nenhuma chamada registrada"
@@ -88,26 +102,45 @@ export default function DashboardScreen() {
             />
           ) : (
             latestRecords.map((record) => {
-              const className = classes.find((item) => item.id === record.classId)?.name ?? 'Turma removida';
+              const className =
+                classes.find((item) => item.id === record.classId)?.name ??
+                "Turma removida";
               const teacherName =
                 record.teacherIds.length === 0
-                  ? 'Professor removido'
+                  ? "Professor removido"
                   : record.teacherIds
-                      .map((teacherId) => teachers.find((item) => item.id === teacherId)?.name ?? 'Removido')
-                      .join(', ');
+                      .map(
+                        (teacherId) =>
+                          teachers.find((item) => item.id === teacherId)
+                            ?.name ?? "Removido",
+                      )
+                      .join(", ");
 
-              const presentCount = record.entries.filter((entry) => entry.status === 'present').length;
-              const absentCount = record.entries.filter((entry) => entry.status === 'absent').length;
-              const justifiedCount = record.entries.filter((entry) => entry.status === 'justified').length;
-              const lateCount = record.entries.filter((entry) => entry.status === 'late').length;
+              const presentCount = record.entries.filter(
+                (entry) => entry.status === "present",
+              ).length;
+              const absentCount = record.entries.filter(
+                (entry) => entry.status === "absent",
+              ).length;
+              const justifiedCount = record.entries.filter(
+                (entry) => entry.status === "justified",
+              ).length;
+              const lateCount = record.entries.filter(
+                (entry) => entry.status === "late",
+              ).length;
 
               return (
                 <View key={record.id} style={styles.recordItem}>
                   <View style={styles.recordHeader}>
                     <Text style={styles.recordTitle}>{className}</Text>
-                    <TinyBadge label={formatDateToBr(record.date)} tone="neutral" />
+                    <TinyBadge
+                      label={formatDateToBr(record.date)}
+                      tone="neutral"
+                    />
                   </View>
-                  <Text style={styles.recordSubtitle}>Professor: {teacherName}</Text>
+                  <Text style={styles.recordSubtitle}>
+                    Professor: {teacherName}
+                  </Text>
                   <View style={styles.recordBadges}>
                     <TinyBadge label={`P: ${presentCount}`} tone="success" />
                     <TinyBadge label={`F: ${absentCount}`} tone="danger" />
@@ -121,6 +154,7 @@ export default function DashboardScreen() {
         </SectionCard>
       </Animated.View>
 
+      {/*
       <Animated.View entering={FadeInDown.delay(180).duration(500)}>
         <SectionCard title="Fluxo sugerido" description="Ordem ideal para usar o app no culto dominical.">
           <View style={styles.flowLine}>
@@ -131,22 +165,23 @@ export default function DashboardScreen() {
           </View>
         </SectionCard>
       </Animated.View>
+      */}
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
   statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
   },
   statBox: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: AppPalette.border,
     borderRadius: 14,
-    width: '48%',
+    width: "48%",
     paddingVertical: 14,
     paddingHorizontal: 12,
     gap: 2,
@@ -156,7 +191,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: AppPalette.primary,
     borderRadius: 14,
-    width: '48%',
+    width: "48%",
     paddingVertical: 14,
     paddingHorizontal: 12,
     gap: 2,
@@ -170,19 +205,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: AppPalette.inkMuted,
     fontFamily: AppTypography.bodyStrong,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
   },
   statValueHighlight: {
     fontSize: 28,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontFamily: AppTypography.title,
   },
   statLabelHighlight: {
     fontSize: 12,
-    color: '#DCEEFF',
+    color: "#DCEEFF",
     fontFamily: AppTypography.bodyStrong,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
   },
   recordItem: {
@@ -190,13 +225,13 @@ const styles = StyleSheet.create({
     borderColor: AppPalette.border,
     borderRadius: 14,
     padding: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     gap: 6,
   },
   recordHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     gap: 8,
   },
   recordTitle: {
@@ -211,7 +246,7 @@ const styles = StyleSheet.create({
     fontFamily: AppTypography.body,
   },
   recordBadges: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 6,
   },
   flowLine: {

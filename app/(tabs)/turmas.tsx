@@ -41,69 +41,95 @@ function toggleId(values: string[], id: string) {
   return values.includes(id) ? values.filter((item) => item !== id) : [...values, id];
 }
 
+function extractPhoneDigits(value: string) {
+  return value.replace(/\D/g, '').slice(0, 11);
+}
+
+function formatPhoneDigits(digits: string) {
+  if (!digits) {
+    return '';
+  }
+
+  if (digits.length <= 2) {
+    return `(${digits}`;
+  }
+
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  }
+
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+}
+
+function normalizePhoneInput(value: string) {
+  return formatPhoneDigits(extractPhoneDigits(value));
+}
+
+function normalizeBrDateInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+
+  if (digits.length <= 2) {
+    return digits;
+  }
+
+  if (digits.length <= 4) {
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  }
+
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+function parseBrDateToIso(value: string) {
+  const match = value.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) {
+    return null;
+  }
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
 export default function ClassGroupsScreen() {
   const {
     classes,
-    discipleshipLessons,
     students,
     attendanceRecords,
     createClass,
     getClassDeleteImpact,
     deleteClass,
     createStudent,
-    deleteStudent,
     assignStudentToClass,
     removeStudentFromClass,
-    importStudentsFromCsv,
     getStudentsForClass,
-    getClassesForStudent,
   } = useSchoolData();
 
   const [className, setClassName] = useState('');
   const [classDescription, setClassDescription] = useState('');
+  const [classIdForAddStudents, setClassIdForAddStudents] = useState<string | null>(null);
+  const [selectedExistingStudentIds, setSelectedExistingStudentIds] = useState<string[]>([]);
+  const [isNewStudentFormVisible, setIsNewStudentFormVisible] = useState(false);
   const [studentForm, setStudentForm] = useState<StudentFormState>(initialStudentForm);
-  const [selectedClassIdsForStudent, setSelectedClassIdsForStudent] = useState<string[]>([]);
-  const [selectedClassIdsForImport, setSelectedClassIdsForImport] = useState<string[]>([]);
-  const [csvText, setCsvText] = useState('');
-  const [importMessage, setImportMessage] = useState('');
 
   const onCreateClass = () => {
     createClass(className, classDescription);
     setClassName('');
     setClassDescription('');
-  };
-
-  const onCreateStudent = () => {
-    const studentId = createStudent({
-      ...studentForm,
-      classIds: selectedClassIdsForStudent,
-    });
-
-    if (!studentId) {
-      return;
-    }
-
-    setStudentForm(initialStudentForm);
-    setSelectedClassIdsForStudent([]);
-  };
-
-  const onDeleteStudent = (studentId: string, studentName: string) => {
-    const linkedClasses = getClassesForStudent(studentId).length;
-
-    Alert.alert(
-      'Apagar cadastro do aluno?',
-      `${studentName} será removido de ${linkedClasses} turma(s) e das chamadas relacionadas.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Apagar aluno',
-          style: 'destructive',
-          onPress: () => {
-            deleteStudent(studentId);
-          },
-        },
-      ]
-    );
   };
 
   const onDeleteClass = (classId: string) => {
@@ -125,36 +151,50 @@ export default function ClassGroupsScreen() {
     );
   };
 
-  const toggleStudentClass = (studentId: string, classId: string) => {
-    const isLinked = classes.find((item) => item.id === classId)?.studentIds.includes(studentId);
-    if (isLinked) {
-      removeStudentFromClass(classId, studentId);
+  const onToggleAddStudentsForClass = (classId: string) => {
+    setClassIdForAddStudents((previous) => (previous === classId ? null : classId));
+    setSelectedExistingStudentIds([]);
+    setIsNewStudentFormVisible(false);
+    setStudentForm(initialStudentForm);
+  };
+
+  const onAddExistingStudentsToClass = (classId: string) => {
+    selectedExistingStudentIds.forEach((studentId) => {
+      assignStudentToClass(classId, studentId);
+    });
+
+    setSelectedExistingStudentIds([]);
+  };
+
+  const onCreateStudentForClass = (classId: string) => {
+    const trimmedBirthDate = studentForm.birthDate.trim();
+    const birthDateIso = trimmedBirthDate ? parseBrDateToIso(trimmedBirthDate) : '';
+
+    if (trimmedBirthDate && !birthDateIso) {
+      Alert.alert('Data de nascimento inválida', 'Use o formato DD/MM/AAAA.');
       return;
     }
 
-    assignStudentToClass(classId, studentId);
-  };
+    const studentId = createStudent({
+      ...studentForm,
+      birthDate: birthDateIso || '',
+      studentPhone: extractPhoneDigits(studentForm.studentPhone),
+      guardianPhone: extractPhoneDigits(studentForm.guardianPhone),
+      classIds: [classId],
+    });
 
-  const onImportCsv = () => {
-    const result = importStudentsFromCsv(csvText, selectedClassIdsForImport);
-    const message = `Importados: ${result.created} | Ignorados: ${result.skipped}${
-      result.errors.length > 0 ? ` | Erros: ${result.errors.length}` : ''
-    }`;
-
-    setImportMessage(message);
-    if (result.created > 0) {
-      setCsvText('');
+    if (!studentId) {
+      return;
     }
 
-    if (result.errors.length > 0) {
-      Alert.alert('Importação finalizada', result.errors.slice(0, 5).join('\n'));
-    }
+    setStudentForm(initialStudentForm);
+    setIsNewStudentFormVisible(false);
   };
 
   return (
     <ScreenShell
       title="Turmas"
-      subtitle="Crie turmas e vincule alunos. Cada turma segue a grade fixa de aulas do discipulado.">
+      subtitle="Crie turmas e adicione alunos já cadastrados ou novos em cada turma.">
       <Animated.View entering={FadeInDown.duration(450)}>
         <SectionCard title="Nova turma" description="Monte as turmas por faixa etária, sala ou departamento.">
           <View>
@@ -179,246 +219,10 @@ export default function ClassGroupsScreen() {
         </SectionCard>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(70).duration(450)}>
-        <SectionCard
-          title="Grade fixa de aulas"
-          description="Toda turma cadastrada usa automaticamente esta sequência de aulas do discipulado.">
-          <TinyBadge label={`Total de aulas: ${discipleshipLessons.length}`} tone="primary" />
-          {discipleshipLessons.length === 0 ? (
-            <Text style={styles.studentEmpty}>Não foi possível carregar a lista de aulas.</Text>
-          ) : (
-            <View style={styles.lessonList}>
-              {discipleshipLessons.map((lessonName, index) => (
-                <Text key={lessonName} style={styles.lessonItem}>
-                  {index + 1}. {lessonName}
-                </Text>
-              ))}
-            </View>
-          )}
-        </SectionCard>
-      </Animated.View>
-
-      <Animated.View entering={FadeInDown.delay(140).duration(450)}>
-        <SectionCard
-          title="Cadastro completo de aluno"
-          description="Dados principais do aluno e do responsável para secretaria e acompanhamento.">
-          <View>
-            <FieldLabel>Nome completo *</FieldLabel>
-            <AppInput
-              value={studentForm.name}
-              onChangeText={(value) => setStudentForm((previous) => ({ ...previous, name: value }))}
-              placeholder="Ex.: Ana Beatriz Souza"
-            />
-          </View>
-
-          <View style={styles.gridTwo}>
-            <View style={{ flex: 1 }}>
-              <FieldLabel>Nascimento</FieldLabel>
-              <AppInput
-                value={studentForm.birthDate}
-                onChangeText={(value) => setStudentForm((previous) => ({ ...previous, birthDate: value }))}
-                placeholder="AAAA-MM-DD"
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <FieldLabel>Telefone do aluno</FieldLabel>
-              <AppInput
-                value={studentForm.studentPhone}
-                onChangeText={(value) => setStudentForm((previous) => ({ ...previous, studentPhone: value }))}
-                placeholder="(11) 99999-9999"
-                keyboardType="phone-pad"
-              />
-            </View>
-          </View>
-
-          <View>
-            <FieldLabel>E-mail</FieldLabel>
-            <AppInput
-              value={studentForm.email}
-              onChangeText={(value) => setStudentForm((previous) => ({ ...previous, email: value }))}
-              placeholder="aluno@email.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-
-          <View style={styles.gridTwo}>
-            <View style={{ flex: 1 }}>
-              <FieldLabel>Responsável</FieldLabel>
-              <AppInput
-                value={studentForm.guardianName}
-                onChangeText={(value) => setStudentForm((previous) => ({ ...previous, guardianName: value }))}
-                placeholder="Ex.: Maria Souza"
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <FieldLabel>Telefone responsável</FieldLabel>
-              <AppInput
-                value={studentForm.guardianPhone}
-                onChangeText={(value) => setStudentForm((previous) => ({ ...previous, guardianPhone: value }))}
-                placeholder="(11) 98888-7777"
-                keyboardType="phone-pad"
-              />
-            </View>
-          </View>
-
-          <View>
-            <FieldLabel>Endereço</FieldLabel>
-            <AppInput
-              value={studentForm.address}
-              onChangeText={(value) => setStudentForm((previous) => ({ ...previous, address: value }))}
-              placeholder="Rua, número, bairro"
-            />
-          </View>
-
-          <View>
-            <FieldLabel>Observações</FieldLabel>
-            <AppInput
-              value={studentForm.notes}
-              onChangeText={(value) => setStudentForm((previous) => ({ ...previous, notes: value }))}
-              placeholder="Alergia, necessidade especial, etc."
-              multiline
-              numberOfLines={3}
-              style={{ minHeight: 74, textAlignVertical: 'top' }}
-            />
-          </View>
-
-          <View>
-            <FieldLabel>Vincular nas turmas</FieldLabel>
-            <View style={styles.chipWrap}>
-              {classes.map((classGroup) => {
-                const active = selectedClassIdsForStudent.includes(classGroup.id);
-                return (
-                  <Pressable
-                    key={classGroup.id}
-                    onPress={() => setSelectedClassIdsForStudent((previous) => toggleId(previous, classGroup.id))}
-                    style={({ pressed }) => [
-                      styles.selectionChip,
-                      active ? styles.selectionChipActive : null,
-                      pressed ? styles.pressed : null,
-                    ]}>
-                    <Text style={[styles.selectionChipText, active ? styles.selectionChipTextActive : null]}>
-                      {classGroup.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-
-          <ButtonPrimary
-            title="Cadastrar aluno"
-            onPress={onCreateStudent}
-            disabled={!studentForm.name.trim()}
-          />
-        </SectionCard>
-      </Animated.View>
-
-      <Animated.View entering={FadeInDown.delay(210).duration(450)}>
-        <SectionCard
-          title="Importação CSV"
-          description="Cole CSV com colunas: nome,nascimento,telefone,email,responsavel,telefone_responsavel,endereco,observacoes">
-          <View>
-            <FieldLabel>Turmas para vincular importados</FieldLabel>
-            <View style={styles.chipWrap}>
-              {classes.map((classGroup) => {
-                const active = selectedClassIdsForImport.includes(classGroup.id);
-                return (
-                  <Pressable
-                    key={classGroup.id}
-                    onPress={() => setSelectedClassIdsForImport((previous) => toggleId(previous, classGroup.id))}
-                    style={({ pressed }) => [
-                      styles.selectionChip,
-                      active ? styles.selectionChipActive : null,
-                      pressed ? styles.pressed : null,
-                    ]}>
-                    <Text style={[styles.selectionChipText, active ? styles.selectionChipTextActive : null]}>
-                      {classGroup.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-          <View>
-            <FieldLabel>Conteúdo CSV</FieldLabel>
-            <AppInput
-              value={csvText}
-              onChangeText={setCsvText}
-              placeholder="nome,nascimento,telefone,email,responsavel,telefone_responsavel,endereco,observacoes"
-              multiline
-              numberOfLines={6}
-              style={{ minHeight: 130, textAlignVertical: 'top' }}
-              autoCapitalize="none"
-            />
-          </View>
-          <ButtonPrimary title="Importar CSV" onPress={onImportCsv} disabled={!csvText.trim()} />
-          {importMessage ? <Text style={styles.importMessage}>{importMessage}</Text> : null}
-        </SectionCard>
-      </Animated.View>
-
-      <Animated.View entering={FadeInDown.delay(270).duration(450)}>
-        <SectionCard
-          title="Alunos cadastrados"
-          description="Toque nas chips de turma para adicionar/remover o aluno em várias turmas.">
-          {students.length === 0 ? (
-            <EmptyMessage
-              title="Sem alunos cadastrados"
-              description="Cadastre manualmente ou use importação CSV para preencher mais rápido."
-            />
-          ) : (
-            students.map((student) => {
-              const linkedClassIds = getClassesForStudent(student.id).map((item) => item.id);
-
-              return (
-                <View key={student.id} style={styles.studentCard}>
-                  <View style={styles.studentHeader}>
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={styles.studentName}>{student.name}</Text>
-                      <Text style={styles.studentMeta}>
-                        {student.guardianName || 'Sem responsável'}
-                        {student.guardianPhone ? ` | ${student.guardianPhone}` : ''}
-                      </Text>
-                    </View>
-                    <ButtonGhost
-                      title="Apagar cadastro"
-                      tone="danger"
-                      onPress={() => onDeleteStudent(student.id, student.name)}
-                    />
-                  </View>
-
-                  <View style={styles.chipWrap}>
-                    {classes.map((classGroup) => {
-                      const active = linkedClassIds.includes(classGroup.id);
-                      return (
-                        <Pressable
-                          key={`${student.id}-${classGroup.id}`}
-                          onPress={() => toggleStudentClass(student.id, classGroup.id)}
-                          style={({ pressed }) => [
-                            styles.selectionChip,
-                            active ? styles.selectionChipActive : null,
-                            pressed ? styles.pressed : null,
-                          ]}>
-                          <Text style={[styles.selectionChipText, active ? styles.selectionChipTextActive : null]}>
-                            {classGroup.name}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-
-                  {student.notes ? <Text style={styles.studentNotes}>Observação: {student.notes}</Text> : null}
-                </View>
-              );
-            })
-          )}
-        </SectionCard>
-      </Animated.View>
-
-      <Animated.View entering={FadeInDown.delay(330).duration(450)}>
+      <Animated.View entering={FadeInDown.delay(90).duration(450)}>
         <SectionCard
           title="Turmas cadastradas"
-          description="Visão de cada turma com alerta de impacto antes de apagar.">
+          description="Abra uma turma para adicionar alunos existentes ou criar um novo aluno nela.">
           {classes.length === 0 ? (
             <EmptyMessage
               title="Sem turmas ainda"
@@ -428,6 +232,8 @@ export default function ClassGroupsScreen() {
             classes.map((classGroup) => {
               const classStudents = getStudentsForClass(classGroup.id);
               const attendanceLinked = attendanceRecords.filter((item) => item.classId === classGroup.id).length;
+              const isAddOpen = classIdForAddStudents === classGroup.id;
+              const availableStudents = students.filter((student) => !classGroup.studentIds.includes(student.id));
 
               return (
                 <View key={classGroup.id} style={styles.classItem}>
@@ -464,7 +270,173 @@ export default function ClassGroupsScreen() {
                     )}
                   </View>
 
-                  <ButtonGhost title="Apagar turma" tone="danger" onPress={() => onDeleteClass(classGroup.id)} />
+                  <View style={styles.actionsWrap}>
+                    <ButtonGhost
+                      title={isAddOpen ? 'Fechar adição de alunos' : 'Adicionar alunos'}
+                      tone="success"
+                      onPress={() => onToggleAddStudentsForClass(classGroup.id)}
+                    />
+                    <ButtonGhost title="Apagar turma" tone="danger" onPress={() => onDeleteClass(classGroup.id)} />
+                  </View>
+
+                  {isAddOpen ? (
+                    <View style={styles.addPanel}>
+                      <FieldLabel>Alunos já cadastrados</FieldLabel>
+                      {availableStudents.length === 0 ? (
+                        <Text style={styles.studentEmpty}>Todos os alunos cadastrados já estão nesta turma.</Text>
+                      ) : (
+                        <View style={styles.chipWrap}>
+                          {availableStudents.map((student) => {
+                            const active = selectedExistingStudentIds.includes(student.id);
+                            return (
+                              <Pressable
+                                key={student.id}
+                                onPress={() =>
+                                  setSelectedExistingStudentIds((previous) => toggleId(previous, student.id))
+                                }
+                                style={({ pressed }) => [
+                                  styles.selectionChip,
+                                  active ? styles.selectionChipActive : null,
+                                  pressed ? styles.pressed : null,
+                                ]}>
+                                <Text style={[styles.selectionChipText, active ? styles.selectionChipTextActive : null]}>
+                                  {student.name}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      )}
+
+                      <ButtonPrimary
+                        title="Adicionar selecionados"
+                        onPress={() => onAddExistingStudentsToClass(classGroup.id)}
+                        disabled={selectedExistingStudentIds.length === 0}
+                      />
+
+                      <View style={styles.divider} />
+
+                      <ButtonGhost
+                        title={isNewStudentFormVisible ? 'Cancelar novo aluno' : 'Criar novo aluno'}
+                        tone="success"
+                        onPress={() => {
+                          setIsNewStudentFormVisible((previous) => !previous);
+                          setStudentForm(initialStudentForm);
+                        }}
+                      />
+
+                      {isNewStudentFormVisible ? (
+                        <View style={styles.newStudentForm}>
+                          <View>
+                            <FieldLabel>Nome completo *</FieldLabel>
+                            <AppInput
+                              value={studentForm.name}
+                              onChangeText={(value) => setStudentForm((previous) => ({ ...previous, name: value }))}
+                              placeholder="Ex.: Ana Beatriz Souza"
+                            />
+                          </View>
+
+                          <View style={styles.gridTwo}>
+                            <View style={{ flex: 1 }}>
+                              <FieldLabel>Nascimento</FieldLabel>
+                              <AppInput
+                                value={studentForm.birthDate}
+                                onChangeText={(value) =>
+                                  setStudentForm((previous) => ({
+                                    ...previous,
+                                    birthDate: normalizeBrDateInput(value),
+                                  }))
+                                }
+                                placeholder="DD/MM/AAAA"
+                                keyboardType="numbers-and-punctuation"
+                              />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <FieldLabel>Telefone do aluno</FieldLabel>
+                              <AppInput
+                                value={studentForm.studentPhone}
+                                onChangeText={(value) =>
+                                  setStudentForm((previous) => ({
+                                    ...previous,
+                                    studentPhone: normalizePhoneInput(value),
+                                  }))
+                                }
+                                placeholder="(11) 99999-9999"
+                                keyboardType="phone-pad"
+                              />
+                            </View>
+                          </View>
+
+                          <View>
+                            <FieldLabel>E-mail</FieldLabel>
+                            <AppInput
+                              value={studentForm.email}
+                              onChangeText={(value) => setStudentForm((previous) => ({ ...previous, email: value }))}
+                              placeholder="aluno@email.com"
+                              keyboardType="email-address"
+                              autoCapitalize="none"
+                            />
+                          </View>
+
+                          <View style={styles.gridTwo}>
+                            <View style={{ flex: 1 }}>
+                              <FieldLabel>Responsável</FieldLabel>
+                              <AppInput
+                                value={studentForm.guardianName}
+                                onChangeText={(value) =>
+                                  setStudentForm((previous) => ({ ...previous, guardianName: value }))
+                                }
+                                placeholder="Ex.: Maria Souza"
+                              />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <FieldLabel>Telefone responsável</FieldLabel>
+                              <AppInput
+                                value={studentForm.guardianPhone}
+                                onChangeText={(value) =>
+                                  setStudentForm((previous) => ({
+                                    ...previous,
+                                    guardianPhone: normalizePhoneInput(value),
+                                  }))
+                                }
+                                placeholder="(11) 98888-7777"
+                                keyboardType="phone-pad"
+                              />
+                            </View>
+                          </View>
+
+                          <View>
+                            <FieldLabel>Endereço</FieldLabel>
+                            <AppInput
+                              value={studentForm.address}
+                              onChangeText={(value) =>
+                                setStudentForm((previous) => ({ ...previous, address: value }))
+                              }
+                              placeholder="Rua, número, bairro"
+                            />
+                          </View>
+
+                          <View>
+                            <FieldLabel>Observações</FieldLabel>
+                            <AppInput
+                              value={studentForm.notes}
+                              onChangeText={(value) => setStudentForm((previous) => ({ ...previous, notes: value }))}
+                              placeholder="Alergia, necessidade especial, etc."
+                              multiline
+                              numberOfLines={3}
+                              style={{ minHeight: 74, textAlignVertical: 'top' }}
+                            />
+                          </View>
+
+                          <ButtonPrimary
+                            title="Criar e adicionar nesta turma"
+                            onPress={() => onCreateStudentForClass(classGroup.id)}
+                            disabled={!studentForm.name.trim()}
+                          />
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
                 </View>
               );
             })
@@ -516,44 +488,6 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.85,
   },
-  importMessage: {
-    color: AppPalette.ink,
-    fontSize: 13,
-    fontFamily: AppTypography.bodyStrong,
-  },
-  lessonList: {
-    gap: 6,
-  },
-  lessonItem: {
-    color: AppPalette.ink,
-    fontSize: 13,
-    fontFamily: AppTypography.body,
-    lineHeight: 19,
-  },
-  studentCard: {
-    borderWidth: 1,
-    borderColor: AppPalette.border,
-    borderRadius: 12,
-    padding: 10,
-    gap: 8,
-    backgroundColor: '#FFFFFF',
-  },
-  studentHeader: {
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  studentMeta: {
-    color: AppPalette.inkMuted,
-    fontSize: 12,
-    fontFamily: AppTypography.body,
-  },
-  studentNotes: {
-    color: AppPalette.ink,
-    fontSize: 13,
-    fontFamily: AppTypography.body,
-  },
   classHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -599,5 +533,21 @@ const styles = StyleSheet.create({
     color: AppPalette.ink,
     fontSize: 14,
     fontFamily: AppTypography.body,
+  },
+  actionsWrap: {
+    gap: 8,
+  },
+  addPanel: {
+    borderTopWidth: 1,
+    borderTopColor: AppPalette.border,
+    paddingTop: 10,
+    gap: 10,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: AppPalette.border,
+  },
+  newStudentForm: {
+    gap: 10,
   },
 });
