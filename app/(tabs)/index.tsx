@@ -105,6 +105,7 @@ export default function DashboardScreen() {
               const className =
                 classes.find((item) => item.id === record.classId)?.name ??
                 "Turma removida";
+              const lessonTitle = record.lessonName || "Lição não informada";
               const teacherName =
                 record.teacherIds.length === 0
                   ? "Professor removido"
@@ -138,6 +139,9 @@ export default function DashboardScreen() {
                       tone="neutral"
                     />
                   </View>
+                  <Text style={styles.recordSubtitle}>
+                    Lição: {lessonTitle}
+                  </Text>
                   <Text style={styles.recordSubtitle}>
                     Professor: {teacherName}
                   </Text>
