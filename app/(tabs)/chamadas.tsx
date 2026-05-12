@@ -373,7 +373,7 @@ export default function AttendanceScreen() {
   return (
     <ScreenShell
       title="Chamada"
-      subtitle="Registre a presença por turma, com um ou mais professores, status atrasado e observação por aluno.">
+      subtitle="Registre a presença por turma, com um ou mais professores, status de atraso e observação por aluno.">
       <Animated.View entering={FadeInDown.duration(460)}>
         <SectionCard
           title={editingId ? 'Editar chamada' : 'Nova chamada'}
@@ -601,7 +601,7 @@ export default function AttendanceScreen() {
 
       <Animated.View entering={FadeInDown.delay(100).duration(460)}>
         <SectionCard
-          title="Historico"
+          title="Histórico"
           description="Use editar para corrigir presenças, professores ou observações de aulas anteriores.">
           {attendanceRecords.length === 0 ? (
             <EmptyMessage
@@ -632,7 +632,7 @@ export default function AttendanceScreen() {
                   </View>
                   <Text style={styles.historySub}>Aula: {lessonName}</Text>
                   <Text style={styles.historySub}>Professores: {teacherNames}</Text>
-                  {record.notes ? <Text style={styles.historyNotes}>Obs geral: {record.notes}</Text> : null}
+                  {record.notes ? <Text style={styles.historyNotes}>Observação geral: {record.notes}</Text> : null}
                   <View style={styles.rowBadges}>
                     <TinyBadge label={`P: ${presentCount}`} tone="success" />
                     <TinyBadge label={`F: ${absentCount}`} tone="danger" />

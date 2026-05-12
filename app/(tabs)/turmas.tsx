@@ -92,7 +92,7 @@ export default function ClassGroupsScreen() {
 
     Alert.alert(
       'Apagar cadastro do aluno?',
-      `${studentName} sera removido de ${linkedClasses} turma(s) e das chamadas relacionadas.`,
+      `${studentName} será removido de ${linkedClasses} turma(s) e das chamadas relacionadas.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -111,7 +111,7 @@ export default function ClassGroupsScreen() {
 
     Alert.alert(
       'Apagar turma?',
-      `Isso removera ${impact.attendanceCount} chamadas e desvinculara ${impact.studentsLinked} alunos desta turma.`,
+      `Isso removerá ${impact.attendanceCount} chamadas e desvinculará ${impact.studentsLinked} alunos desta turma.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -147,7 +147,7 @@ export default function ClassGroupsScreen() {
     }
 
     if (result.errors.length > 0) {
-      Alert.alert('Importacao finalizada', result.errors.slice(0, 5).join('\n'));
+      Alert.alert('Importação finalizada', result.errors.slice(0, 5).join('\n'));
     }
   };
 
@@ -156,22 +156,22 @@ export default function ClassGroupsScreen() {
       title="Turmas"
       subtitle="Crie turmas e vincule alunos. Cada turma segue a grade fixa de aulas do discipulado.">
       <Animated.View entering={FadeInDown.duration(450)}>
-        <SectionCard title="Nova turma" description="Monte as turmas por faixa etaria, sala ou departamento.">
+        <SectionCard title="Nova turma" description="Monte as turmas por faixa etária, sala ou departamento.">
           <View>
             <FieldLabel>Nome da turma</FieldLabel>
             <AppInput
               value={className}
               onChangeText={setClassName}
-              placeholder="Ex.: Juvenis Domingo Manha"
+              placeholder="Ex.: Juvenis Domingo Manhã"
               returnKeyType="next"
             />
           </View>
           <View>
-            <FieldLabel>Descricao (opcional)</FieldLabel>
+            <FieldLabel>Descrição (opcional)</FieldLabel>
             <AppInput
               value={classDescription}
               onChangeText={setClassDescription}
-              placeholder="Ex.: Sala 2, licao 7"
+              placeholder="Ex.: Sala 2, lição 7"
               returnKeyType="done"
             />
           </View>
@@ -182,10 +182,10 @@ export default function ClassGroupsScreen() {
       <Animated.View entering={FadeInDown.delay(70).duration(450)}>
         <SectionCard
           title="Grade fixa de aulas"
-          description="Toda turma cadastrada usa automaticamente esta sequencia de aulas do discipulado.">
+          description="Toda turma cadastrada usa automaticamente esta sequência de aulas do discipulado.">
           <TinyBadge label={`Total de aulas: ${discipleshipLessons.length}`} tone="primary" />
           {discipleshipLessons.length === 0 ? (
-            <Text style={styles.studentEmpty}>Nao foi possivel carregar a lista de aulas.</Text>
+            <Text style={styles.studentEmpty}>Não foi possível carregar a lista de aulas.</Text>
           ) : (
             <View style={styles.lessonList}>
               {discipleshipLessons.map((lessonName, index) => (
@@ -201,7 +201,7 @@ export default function ClassGroupsScreen() {
       <Animated.View entering={FadeInDown.delay(140).duration(450)}>
         <SectionCard
           title="Cadastro completo de aluno"
-          description="Dados principais do aluno e do responsavel para secretaria e acompanhamento.">
+          description="Dados principais do aluno e do responsável para secretaria e acompanhamento.">
           <View>
             <FieldLabel>Nome completo *</FieldLabel>
             <AppInput
@@ -244,7 +244,7 @@ export default function ClassGroupsScreen() {
 
           <View style={styles.gridTwo}>
             <View style={{ flex: 1 }}>
-              <FieldLabel>Responsavel</FieldLabel>
+              <FieldLabel>Responsável</FieldLabel>
               <AppInput
                 value={studentForm.guardianName}
                 onChangeText={(value) => setStudentForm((previous) => ({ ...previous, guardianName: value }))}
@@ -252,7 +252,7 @@ export default function ClassGroupsScreen() {
               />
             </View>
             <View style={{ flex: 1 }}>
-              <FieldLabel>Telefone responsavel</FieldLabel>
+              <FieldLabel>Telefone responsável</FieldLabel>
               <AppInput
                 value={studentForm.guardianPhone}
                 onChangeText={(value) => setStudentForm((previous) => ({ ...previous, guardianPhone: value }))}
@@ -263,16 +263,16 @@ export default function ClassGroupsScreen() {
           </View>
 
           <View>
-            <FieldLabel>Endereco</FieldLabel>
+            <FieldLabel>Endereço</FieldLabel>
             <AppInput
               value={studentForm.address}
               onChangeText={(value) => setStudentForm((previous) => ({ ...previous, address: value }))}
-              placeholder="Rua, numero, bairro"
+              placeholder="Rua, número, bairro"
             />
           </View>
 
           <View>
-            <FieldLabel>Observacoes</FieldLabel>
+            <FieldLabel>Observações</FieldLabel>
             <AppInput
               value={studentForm.notes}
               onChangeText={(value) => setStudentForm((previous) => ({ ...previous, notes: value }))}
@@ -316,7 +316,7 @@ export default function ClassGroupsScreen() {
 
       <Animated.View entering={FadeInDown.delay(210).duration(450)}>
         <SectionCard
-          title="Importacao CSV"
+          title="Importação CSV"
           description="Cole CSV com colunas: nome,nascimento,telefone,email,responsavel,telefone_responsavel,endereco,observacoes">
           <View>
             <FieldLabel>Turmas para vincular importados</FieldLabel>
@@ -341,7 +341,7 @@ export default function ClassGroupsScreen() {
             </View>
           </View>
           <View>
-            <FieldLabel>Conteudo CSV</FieldLabel>
+            <FieldLabel>Conteúdo CSV</FieldLabel>
             <AppInput
               value={csvText}
               onChangeText={setCsvText}
@@ -360,11 +360,11 @@ export default function ClassGroupsScreen() {
       <Animated.View entering={FadeInDown.delay(270).duration(450)}>
         <SectionCard
           title="Alunos cadastrados"
-          description="Toque nas chips de turma para adicionar/remover o aluno em varias turmas.">
+          description="Toque nas chips de turma para adicionar/remover o aluno em várias turmas.">
           {students.length === 0 ? (
             <EmptyMessage
               title="Sem alunos cadastrados"
-              description="Cadastre manualmente ou use importacao CSV para preencher mais rapido."
+              description="Cadastre manualmente ou use importação CSV para preencher mais rápido."
             />
           ) : (
             students.map((student) => {
@@ -376,7 +376,7 @@ export default function ClassGroupsScreen() {
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text style={styles.studentName}>{student.name}</Text>
                       <Text style={styles.studentMeta}>
-                        {student.guardianName || 'Sem responsavel'}
+                        {student.guardianName || 'Sem responsável'}
                         {student.guardianPhone ? ` | ${student.guardianPhone}` : ''}
                       </Text>
                     </View>
@@ -407,7 +407,7 @@ export default function ClassGroupsScreen() {
                     })}
                   </View>
 
-                  {student.notes ? <Text style={styles.studentNotes}>Obs: {student.notes}</Text> : null}
+                  {student.notes ? <Text style={styles.studentNotes}>Observação: {student.notes}</Text> : null}
                 </View>
               );
             })
@@ -418,7 +418,7 @@ export default function ClassGroupsScreen() {
       <Animated.View entering={FadeInDown.delay(330).duration(450)}>
         <SectionCard
           title="Turmas cadastradas"
-          description="Visao de cada turma com alerta de impacto antes de apagar.">
+          description="Visão de cada turma com alerta de impacto antes de apagar.">
           {classes.length === 0 ? (
             <EmptyMessage
               title="Sem turmas ainda"
@@ -443,7 +443,7 @@ export default function ClassGroupsScreen() {
 
                   <Text style={styles.warningText}>
                     {attendanceLinked > 0
-                      ? `Aviso: esta turma possui ${attendanceLinked} chamada(s) no historico.`
+                      ? `Aviso: esta turma possui ${attendanceLinked} chamada(s) no histórico.`
                       : 'Sem chamadas vinculadas no momento.'}
                   </Text>
 

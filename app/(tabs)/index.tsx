@@ -53,9 +53,9 @@ export default function DashboardScreen() {
   return (
     <ScreenShell
       title="Chamada EBD"
-      subtitle={`Visao geral da escola biblica: turmas, professores e historico de presenca. Modo: ${modeLabel}.`}>
+      subtitle={`Visão geral da escola bíblica: turmas, professores e histórico de presença. Modo: ${modeLabel}.`}>
       <Animated.View entering={FadeInDown.delay(50).duration(500)}>
-        <SectionCard title="Painel rapido" description="Leitura imediata para o inicio da aula.">
+        <SectionCard title="Painel rápido" description="Leitura imediata para o início da aula.">
           <View style={styles.statsGrid}>
             <View style={styles.statBox}>
               <Text style={styles.statValue}>{stats.classesCount}</Text>
@@ -79,12 +79,12 @@ export default function DashboardScreen() {
 
       <Animated.View entering={FadeInDown.delay(120).duration(500)}>
         <SectionCard
-          title="Ultimas chamadas"
+          title="Últimas chamadas"
           description="Toque na aba Chamada para editar ou registrar uma nova.">
           {latestRecords.length === 0 ? (
             <EmptyMessage
               title="Nenhuma chamada registrada"
-              description="Assim que voce registrar a primeira chamada, ela aparece aqui."
+              description="Assim que você registrar a primeira chamada, ela aparece aqui."
             />
           ) : (
             latestRecords.map((record) => {
@@ -125,9 +125,9 @@ export default function DashboardScreen() {
         <SectionCard title="Fluxo sugerido" description="Ordem ideal para usar o app no culto dominical.">
           <View style={styles.flowLine}>
             <Text style={styles.flowStep}>1) Cadastre os professores</Text>
-            <Text style={styles.flowStep}>2) Crie as turmas e associe alunos (a grade de {discipleshipLessons.length} aulas e fixa)</Text>
+            <Text style={styles.flowStep}>2) Crie as turmas e associe alunos (a grade de {discipleshipLessons.length} aulas é fixa)</Text>
             <Text style={styles.flowStep}>3) Registre a chamada por turma, selecionando um ou mais professores da aula</Text>
-            <Text style={styles.flowStep}>4) Edite chamadas anteriores e gere relatorios para secretaria</Text>
+            <Text style={styles.flowStep}>4) Edite chamadas anteriores e gere relatórios para secretaria</Text>
           </View>
         </SectionCard>
       </Animated.View>
