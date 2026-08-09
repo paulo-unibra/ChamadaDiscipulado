@@ -56,12 +56,50 @@ const DISCIPLESHIP_LESSONS = [
 
 const LEGACY_AUTO_CLASS_DESCRIPTION = 'Aula fixa do discipulado'
 
+type AuditEntry = {
+  action: string
+  entityType: string
+  entityId?: string
+  details?: Record<string, unknown>
+}
+
+async function writeAuditLog(
+  connection: any,
+  request: HttpContext['request'],
+  entry: AuditEntry
+) {
+  try {
+    await connection.table('audit_logs').insert({
+      id: id('audit'),
+      action: entry.action,
+      entity_type: entry.entityType,
+      entity_id: entry.entityId ?? null,
+      details: entry.details ? JSON.stringify(entry.details) : null,
+      ip: request.ip() || null,
+      user_agent: (request.header('user-agent') || '').slice(0, 255) || null,
+    })
+  } catch (error) {
+    console.warn('[audit] failed to write log:', error)
+  }
+}
+
 function normalizeClassName(value: string) {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase()
+}
+
+function parseAuditDetails(value: unknown): unknown {
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value)
+    } catch {
+      return value
+    }
+  }
+  return value ?? {}
 }
 
 const DISCIPLESHIP_LESSON_LOOKUP = new Set(
@@ -133,13 +171,18 @@ async function getState() {
     attendanceTeachersRows,
     attendanceEntriesRows,
   ] = await Promise.all([
-    db.from('classes').select('*').orderBy('created_at', 'desc'),
-    db.from('students').select('*').orderBy('created_at', 'desc'),
-    db.from('teachers').select('*').orderBy('created_at', 'desc'),
-    db.from('class_students').select('*'),
-    db.from('attendance_records').select('*').orderBy('date', 'desc').orderBy('created_at', 'desc'),
-    db.from('attendance_teachers').select('*'),
-    db.from('attendance_entries').select('*'),
+    db.from('classes').select('*').whereNull('deleted_at').orderBy('created_at', 'desc'),
+    db.from('students').select('*').whereNull('deleted_at').orderBy('created_at', 'desc'),
+    db.from('teachers').select('*').whereNull('deleted_at').orderBy('created_at', 'desc'),
+    db.from('class_students').select('*').whereNull('deleted_at'),
+    db
+      .from('attendance_records')
+      .select('*')
+      .whereNull('deleted_at')
+      .orderBy('date', 'desc')
+      .orderBy('created_at', 'desc'),
+    db.from('attendance_teachers').select('*').whereNull('deleted_at'),
+    db.from('attendance_entries').select('*').whereNull('deleted_at'),
   ])
 
   const classStudentsByClassId = classStudentsRows.reduce<Record<string, string[]>>((acc, row) => {
@@ -195,7 +238,10 @@ async function getState() {
     .map((row) => String(row.id))
 
   if (legacyAutoClassIds.length > 0) {
-    await db.from('classes').whereIn('id', legacyAutoClassIds).delete()
+    await db
+      .from('classes')
+      .whereIn('id', legacyAutoClassIds)
+      .update({ deleted_at: new Date() })
   }
 
   const legacyAutoClassIdSet = new Set(legacyAutoClassIds)
@@ -253,8 +299,61 @@ async function getState() {
 }
 
 export default class SchoolController {
+  async studentTimeline({ response }: HttpContext) {
+    const rows = await db
+      .from('students')
+      .select(
+        'students.id',
+        'students.name',
+        db.raw('MIN(attendance_records.date) as start_date'),
+        db.raw('MAX(attendance_records.date) as end_date'),
+        db.raw(
+          'MIN(attendance_records.lesson_name) filter (where attendance_records.date = (select min(ar2.date) from attendance_records ar2 inner join attendance_entries ae2 on ae2.attendance_record_id = ar2.id where ae2.student_id = students.id and ae2.deleted_at is null and ar2.deleted_at is null and ae2.status in (\'present\', \'late\'))) as first_lesson'
+        ),
+        db.raw(
+          'MAX(attendance_records.lesson_name) filter (where attendance_records.date = (select max(ar2.date) from attendance_records ar2 inner join attendance_entries ae2 on ae2.attendance_record_id = ar2.id where ae2.student_id = students.id and ae2.deleted_at is null and ar2.deleted_at is null and ae2.status in (\'present\', \'late\'))) as last_lesson'
+        )
+      )
+      .innerJoin('attendance_entries', 'attendance_entries.student_id', 'students.id')
+      .innerJoin('attendance_records', 'attendance_records.id', 'attendance_entries.attendance_record_id')
+      .whereNull('students.deleted_at')
+      .whereNull('attendance_entries.deleted_at')
+      .whereNull('attendance_records.deleted_at')
+      .whereIn('attendance_entries.status', ['present', 'late'])
+      .groupBy('students.id', 'students.name')
+      .orderBy('start_date', 'asc')
+
+    const data = rows.map((row: any) => ({
+      studentId: String(row.id),
+      studentName: row.name,
+      startDate: row.start_date ? normalizeDateForClient(row.start_date) : '',
+      endDate: row.end_date ? normalizeDateForClient(row.end_date) : '',
+      firstLesson: row.first_lesson ?? '',
+      lastLesson: row.last_lesson ?? '',
+    }))
+
+    return response.ok(data)
+  }
+
   async state({ response }: HttpContext) {
     return response.ok(await getState())
+  }
+
+  async auditLogs({ response }: HttpContext) {
+    const rows = await db.from('audit_logs').orderBy('created_at', 'desc').limit(200)
+
+    const data = rows.map((row: any) => ({
+      id: String(row.id),
+      action: row.action,
+      entityType: row.entity_type,
+      entityId: row.entity_id ?? '',
+      details: parseAuditDetails(row.details),
+      ip: row.ip ?? '',
+      userAgent: row.user_agent ?? '',
+      createdAt: row.created_at,
+    }))
+
+    return response.ok(data)
   }
 
   async createClass({ request, response }: HttpContext) {
@@ -265,17 +364,61 @@ export default class SchoolController {
       return response.badRequest({ message: 'Nome da turma eh obrigatorio.' })
     }
 
+    const classId = id('class')
     await db.table('classes').insert({
-      id: id('class'),
+      id: classId,
       name,
       description: description || null,
+    })
+
+    await writeAuditLog(db, request, {
+      action: 'class.create',
+      entityType: 'class',
+      entityId: classId,
+      details: { name, description },
     })
 
     return response.ok(await getState())
   }
 
-  async deleteClass({ params, response }: HttpContext) {
-    await db.from('classes').where('id', params.id).delete()
+  async deleteClass({ request, params, response }: HttpContext) {
+    const existing = await db.from('classes').where('id', params.id).first()
+    const deletedAt = new Date()
+
+    await db.from('classes').where('id', params.id).update({ deleted_at: deletedAt })
+    await db.from('class_students').where('class_id', params.id).update({ deleted_at: deletedAt })
+
+    const recordRows = await db
+      .from('attendance_records')
+      .select('id')
+      .where('class_id', params.id)
+      .whereNull('deleted_at')
+    const recordIds = recordRows.map((row: any) => String(row.id))
+
+    if (recordIds.length > 0) {
+      await db
+        .from('attendance_records')
+        .whereIn('id', recordIds)
+        .update({ deleted_at: deletedAt })
+      await db
+        .from('attendance_teachers')
+        .whereIn('attendance_record_id', recordIds)
+        .whereNull('deleted_at')
+        .update({ deleted_at: deletedAt })
+      await db
+        .from('attendance_entries')
+        .whereIn('attendance_record_id', recordIds)
+        .whereNull('deleted_at')
+        .update({ deleted_at: deletedAt })
+    }
+
+    await writeAuditLog(db, request, {
+      action: 'class.delete',
+      entityType: 'class',
+      entityId: params.id,
+      details: { name: existing?.name ?? '', recordCount: recordIds.length },
+    })
+
     return response.ok(await getState())
   }
 
@@ -310,11 +453,30 @@ export default class SchoolController {
       await db.table('class_students').insert(rows)
     }
 
+    await writeAuditLog(db, request, {
+      action: 'student.create',
+      entityType: 'student',
+      entityId: studentId,
+      details: { name, classIds },
+    })
+
     return response.ok(await getState())
   }
 
-  async deleteStudent({ params, response }: HttpContext) {
-    await db.from('students').where('id', params.id).delete()
+  async deleteStudent({ request, params, response }: HttpContext) {
+    const existing = await db.from('students').where('id', params.id).first()
+    const deletedAt = new Date()
+
+    await db.from('students').where('id', params.id).update({ deleted_at: deletedAt })
+    await db.from('class_students').where('student_id', params.id).update({ deleted_at: deletedAt })
+
+    await writeAuditLog(db, request, {
+      action: 'student.delete',
+      entityType: 'student',
+      entityId: params.id,
+      details: { name: existing?.name ?? '' },
+    })
+
     return response.ok(await getState())
   }
 
@@ -338,6 +500,25 @@ export default class SchoolController {
         class_id: classId,
         student_id: studentId,
       })
+
+      await writeAuditLog(db, request, {
+        action: 'class_students.assign',
+        entityType: 'class_students',
+        entityId: classId,
+        details: { studentId },
+      })
+    } else if (alreadyLinked.deleted_at) {
+      await db
+        .from('class_students')
+        .where('id', alreadyLinked.id)
+        .update({ deleted_at: null })
+
+      await writeAuditLog(db, request, {
+        action: 'class_students.assign',
+        entityType: 'class_students',
+        entityId: classId,
+        details: { studentId, restored: true },
+      })
     }
 
     return response.ok(await getState())
@@ -351,20 +532,26 @@ export default class SchoolController {
       return response.badRequest({ message: 'classId e studentId sao obrigatorios.' })
     }
 
+    const link = await db
+      .from('class_students')
+      .where('class_id', classId)
+      .andWhere('student_id', studentId)
+      .first()
+
     await db
       .from('class_students')
       .where('class_id', classId)
       .andWhere('student_id', studentId)
-      .delete()
+      .update({ deleted_at: new Date() })
 
-    await db
-      .from('attendance_entries')
-      .where('student_id', studentId)
-      .whereIn(
-        'attendance_record_id',
-        db.from('attendance_records').select('id').where('class_id', classId)
-      )
-      .delete()
+    if (link) {
+      await writeAuditLog(db, request, {
+        action: 'class_students.remove',
+        entityType: 'class_students',
+        entityId: classId,
+        details: { studentId, historyPreserved: true },
+      })
+    }
 
     return response.ok(await getState())
   }
@@ -377,17 +564,34 @@ export default class SchoolController {
       return response.badRequest({ message: 'Nome do professor eh obrigatorio.' })
     }
 
+    const teacherId = id('teacher')
     await db.table('teachers').insert({
-      id: id('teacher'),
+      id: teacherId,
       name,
       phone: phone || null,
+    })
+
+    await writeAuditLog(db, request, {
+      action: 'teacher.create',
+      entityType: 'teacher',
+      entityId: teacherId,
+      details: { name },
     })
 
     return response.ok(await getState())
   }
 
-  async deleteTeacher({ params, response }: HttpContext) {
-    await db.from('teachers').where('id', params.id).delete()
+  async deleteTeacher({ request, params, response }: HttpContext) {
+    const existing = await db.from('teachers').where('id', params.id).first()
+    await db.from('teachers').where('id', params.id).update({ deleted_at: new Date() })
+
+    await writeAuditLog(db, request, {
+      action: 'teacher.delete',
+      entityType: 'teacher',
+      entityId: params.id,
+      details: { name: existing?.name ?? '' },
+    })
+
     return response.ok(await getState())
   }
 
@@ -416,6 +620,8 @@ export default class SchoolController {
     const trx = await db.transaction()
     try {
       if (payload.id) {
+        const deletedAt = new Date()
+
         await trx
           .from('attendance_records')
           .where('id', attendanceId)
@@ -427,8 +633,16 @@ export default class SchoolController {
             updated_at: new Date(),
           })
 
-        await trx.from('attendance_teachers').where('attendance_record_id', attendanceId).delete()
-        await trx.from('attendance_entries').where('attendance_record_id', attendanceId).delete()
+        await trx
+          .from('attendance_teachers')
+          .where('attendance_record_id', attendanceId)
+          .whereNull('deleted_at')
+          .update({ deleted_at: deletedAt })
+        await trx
+          .from('attendance_entries')
+          .where('attendance_record_id', attendanceId)
+          .whereNull('deleted_at')
+          .update({ deleted_at: deletedAt })
       } else {
         await trx.table('attendance_records').insert({
           id: attendanceId,
@@ -473,6 +687,19 @@ export default class SchoolController {
         await trx.table('attendance_entries').insert(normalizedEntries)
       }
 
+      await writeAuditLog(trx, request, {
+        action: 'attendance.save',
+        entityType: 'attendance_record',
+        entityId: attendanceId,
+        details: {
+          classId,
+          lessonName,
+          date,
+          isUpdate: Boolean(payload.id),
+          entryCount: normalizedEntries.length,
+        },
+      })
+
       await trx.commit()
       return response.ok(await getState())
     } catch (error) {
@@ -481,8 +708,33 @@ export default class SchoolController {
     }
   }
 
-  async deleteAttendance({ params, response }: HttpContext) {
-    await db.from('attendance_records').where('id', params.id).delete()
+  async deleteAttendance({ request, params, response }: HttpContext) {
+    const existing = await db.from('attendance_records').where('id', params.id).first()
+    const deletedAt = new Date()
+
+    await db.from('attendance_records').where('id', params.id).update({ deleted_at: deletedAt })
+    await db
+      .from('attendance_teachers')
+      .where('attendance_record_id', params.id)
+      .whereNull('deleted_at')
+      .update({ deleted_at: deletedAt })
+    await db
+      .from('attendance_entries')
+      .where('attendance_record_id', params.id)
+      .whereNull('deleted_at')
+      .update({ deleted_at: deletedAt })
+
+    await writeAuditLog(db, request, {
+      action: 'attendance.delete',
+      entityType: 'attendance_record',
+      entityId: params.id,
+      details: {
+        classId: existing?.class_id ?? '',
+        lessonName: existing?.lesson_name ?? '',
+        date: existing?.date ?? '',
+      },
+    })
+
     return response.ok(await getState())
   }
 }

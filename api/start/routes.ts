@@ -20,6 +20,7 @@ router.get('/', async () => {
 })
 
 router.get('/school/state', [SchoolController, 'state'])
+router.get('/school/audit-logs', [SchoolController, 'auditLogs'])
 
 router.post('/school/classes', [SchoolController, 'createClass'])
 router.delete('/school/classes/:id', [SchoolController, 'deleteClass'])
@@ -34,3 +35,5 @@ router.delete('/school/teachers/:id', [SchoolController, 'deleteTeacher'])
 
 router.post('/school/attendance', [SchoolController, 'saveAttendance'])
 router.delete('/school/attendance/:id', [SchoolController, 'deleteAttendance'])
+
+router.get('/school/reports/student-timeline', [SchoolController, 'studentTimeline'])
