@@ -29,6 +29,9 @@
 
 html, body { margin: 0; padding: 0; }
 
+body { visibility: hidden; }
+body.authenticated { visibility: visible; }
+
 body {
   background: var(--background);
   color: var(--ink);
@@ -468,8 +471,35 @@ table.attendance {
       .replace(/"/g, '&quot;');
   }
 
+  function fetchAuthorized(path) {
+    var token = sessionStorage.getItem('chamada-token');
+    return fetch(API_BASE_URL + path, {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+  }
+
+  function verifySession() {
+    var token = sessionStorage.getItem('chamada-token');
+    if (!token) {
+      window.location.replace('/login');
+      return Promise.resolve(false);
+    }
+
+    return fetchAuthorized('/auth/session')
+      .then(function (response) {
+        if (!response.ok) throw new Error('Sessão inválida');
+        document.body.classList.add('authenticated');
+        return true;
+      })
+      .catch(function () {
+        sessionStorage.removeItem('chamada-token');
+        window.location.replace('/login');
+        return false;
+      });
+  }
+
   function fetchState() {
-    return fetch(API_BASE_URL + '/school/state')
+    return fetchAuthorized('/school/state')
       .then(function (res) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
@@ -881,7 +911,7 @@ table.attendance {
   function loadAudit() {
     var body = $('audit-body');
     body.innerHTML = '<div class="state-block"><div class="spinner"></div><p class="big">Carregando auditoria…</p></div>';
-    fetch(API_BASE_URL + '/school/audit-logs')
+    fetchAuthorized('/school/audit-logs')
       .then(function (res) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.json();
@@ -914,7 +944,9 @@ table.attendance {
 
   $('btn-audit').addEventListener('click', loadAudit);
 
-  load();
+  verifySession().then(function (authenticated) {
+    if (authenticated) load();
+  });
 })();
 </script>
 </body>

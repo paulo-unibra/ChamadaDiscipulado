@@ -58,6 +58,8 @@ jobs:
           ssh "$DEPLOY_USER@$DEPLOY_HOST" 'mkdir -p /root/ChamadaDiscipulado/deploy-artifacts'
           scp chamada-api-image.tar.gz docker-compose.yml "$DEPLOY_USER@$DEPLOY_HOST:/root/ChamadaDiscipulado/deploy-artifacts/"
           rsync -az dist/ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/discipulado/"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" 'mkdir -p /var/www/discipulado/relatorios'
+          scp web/frequencia.html "$DEPLOY_USER@$DEPLOY_HOST:/var/www/discipulado/relatorios/frequencia.html"
 
       - name: Activate deployment
         env:
