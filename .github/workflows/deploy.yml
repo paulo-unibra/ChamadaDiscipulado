@@ -64,4 +64,4 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
         run: |
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" 'set -e; gunzip -c /root/ChamadaDiscipulado/deploy-artifacts/chamada-api-image.tar.gz | docker load; cp /root/ChamadaDiscipulado/deploy-artifacts/docker-compose.yml /root/ChamadaDiscipulado/docker-compose.yml; pm2 delete chamada-discipulado || true; cd /root/ChamadaDiscipulado; docker compose up -d --remove-orphans; curl --fail --silent http://127.0.0.1:2000/ >/dev/null; rm -rf /root/ChamadaDiscipulado/deploy-artifacts'
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" 'set -e; gunzip -c /root/ChamadaDiscipulado/deploy-artifacts/chamada-api-image.tar.gz | docker load; cp /root/ChamadaDiscipulado/deploy-artifacts/docker-compose.yml /root/ChamadaDiscipulado/docker-compose.yml; pm2 delete chamada-discipulado || true; cd /root/ChamadaDiscipulado; docker compose up -d --remove-orphans; for i in $(seq 1 30); do if curl --fail --silent http://127.0.0.1:2000/ >/dev/null; then rm -rf /root/ChamadaDiscipulado/deploy-artifacts; exit 0; fi; sleep 2; done; docker logs --tail=80 chamada-discipulado-api; exit 1'
