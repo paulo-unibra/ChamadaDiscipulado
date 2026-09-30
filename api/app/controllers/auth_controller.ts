@@ -2,6 +2,11 @@ import type { HttpContext } from '@adonisjs/core/http'
 import authService from '#services/auth_service'
 
 export default class AuthController {
+  async session({ request, response }: HttpContext) {
+    const token = request.header('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
+    return response.ok({ email: authService.getSessionEmail(token) })
+  }
+
   async login({ request, response }: HttpContext) {
     const { email, password } = request.only(['email', 'password'])
     if (typeof email !== 'string' || typeof password !== 'string') {

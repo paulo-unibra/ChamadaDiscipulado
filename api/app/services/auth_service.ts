@@ -55,6 +55,10 @@ class AuthService {
     return sessions.has(token)
   }
 
+  getSessionEmail(token: string) {
+    return sessions.get(token) ?? null
+  }
+
   logout(token: string) {
     sessions.delete(token)
   }

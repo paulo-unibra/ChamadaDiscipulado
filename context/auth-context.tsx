@@ -20,8 +20,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setTokenState] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   useEffect(() => {
-    if (typeof sessionStorage !== 'undefined') setTokenState(sessionStorage.getItem('chamada-token'))
-    setLoading(false)
+    const savedToken =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('chamada-token') : null
+    if (!savedToken) {
+      setLoading(false)
+      return
+    }
+
+    fetch(`${API_BASE_URL}/auth/session`, { headers: { Accept: 'application/json' } })
+      .then((response) => {
+        if (!response.ok) throw new Error('Sessão inválida')
+        setTokenState(savedToken)
+      })
+      .catch(() => {
+        sessionStorage.removeItem('chamada-token')
+        setTokenState(null)
+      })
+      .finally(() => setLoading(false))
   }, [])
   const setToken = (value: string | null) => {
     setTokenState(value)

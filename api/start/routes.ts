@@ -23,6 +23,7 @@ router.get('/', async () => {
 
 router.post('/auth/login', [AuthController, 'login'])
 router.post('/auth/verify', [AuthController, 'verify'])
+router.get('/auth/session', [AuthController, 'session']).use(middleware.requireAuth())
 router.post('/auth/password', [AuthController, 'changePassword']).use(middleware.requireAuth())
 router.post('/auth/logout', [AuthController, 'logout']).use(middleware.requireAuth())
 
