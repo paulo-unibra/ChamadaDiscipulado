@@ -16,6 +16,7 @@ export function ScreenShell({ title, subtitle, children }: ScreenShellProps) {
       <View style={styles.bgOrbBottom} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.headerWrap}>
+          <Text style={styles.kicker}>CHAMADA DO DISCIPULADO</Text>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
@@ -31,17 +32,26 @@ const styles = StyleSheet.create({
     backgroundColor: AppPalette.background,
   },
   content: {
-    paddingHorizontal: 16,
+    width: '100%',
+    maxWidth: 1320,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
     paddingBottom: 20,
     gap: 12,
   },
   headerWrap: {
     paddingTop: 6,
     paddingBottom: 8,
-    gap: 4,
+    gap: 5,
+  },
+  kicker: {
+    color: AppPalette.primary,
+    fontSize: 12,
+    fontFamily: AppTypography.bodyStrong,
+    letterSpacing: 1.6,
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     color: AppPalette.ink,
     fontFamily: AppTypography.title,
     letterSpacing: 0.4,
