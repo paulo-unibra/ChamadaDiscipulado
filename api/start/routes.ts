@@ -8,10 +8,10 @@
 */
 
 import router from '@adonisjs/core/services/router'
+import { middleware } from './kernel.js'
 
 const SchoolController = () => import('#controllers/school_controller')
 const AuthController = () => import('#controllers/auth_controller')
-const RequireAuthMiddleware = () => import('#middleware/require_auth_middleware')
 
 router.get('/', async () => {
   return {
@@ -23,8 +23,8 @@ router.get('/', async () => {
 
 router.post('/auth/login', [AuthController, 'login'])
 router.post('/auth/verify', [AuthController, 'verify'])
-router.post('/auth/password', [AuthController, 'changePassword']).use(RequireAuthMiddleware)
-router.post('/auth/logout', [AuthController, 'logout']).use(RequireAuthMiddleware)
+router.post('/auth/password', [AuthController, 'changePassword']).use(middleware.requireAuth())
+router.post('/auth/logout', [AuthController, 'logout']).use(middleware.requireAuth())
 
 router
   .group(() => {
@@ -47,4 +47,4 @@ router
 
     router.get('/school/reports/student-timeline', [SchoolController, 'studentTimeline'])
   })
-  .use(RequireAuthMiddleware)
+  .use(middleware.requireAuth())
