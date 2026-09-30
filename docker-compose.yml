@@ -1,0 +1,15 @@
+services:
+  api:
+    image: chamada-discipulado-api:latest
+    container_name: chamada-discipulado-api
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - /root/ChamadaDiscipulado/api/.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 2000
+      NODE_ENV: production
+      DB_HOST: 127.0.0.1
+    volumes:
+      - /root/ChamadaDiscipulado/api/.env:/app/build/.env:ro

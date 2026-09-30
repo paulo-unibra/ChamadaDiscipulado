@@ -1,0 +1,67 @@
+name: Deploy Chamada Discipulado
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build web export
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Export Expo web
+        run: npx expo export --platform web
+        env:
+          EXPO_PUBLIC_API_BASE_URL: https://discipulado.bibliafoco.com.br/api
+      - name: Configure Apache client-side routing
+        run: |
+          printf 'Options -MultiViews\nRewriteEngine On\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule ^ index.html [QSA,L]\n' > dist/.htaccess
+
+      - name: Build API Docker image
+        run: docker build -t chamada-discipulado-api:latest ./api
+
+      - name: Package API image
+        run: docker save chamada-discipulado-api:latest | gzip > chamada-api-image.tar.gz
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Copy artifacts to server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" 'mkdir -p /root/ChamadaDiscipulado/deploy-artifacts'
+          scp chamada-api-image.tar.gz docker-compose.yml "$DEPLOY_USER@$DEPLOY_HOST:/root/ChamadaDiscipulado/deploy-artifacts/"
+          rsync -az dist/ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/discipulado/"
+
+      - name: Activate deployment
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" 'set -e; gunzip -c /root/ChamadaDiscipulado/deploy-artifacts/chamada-api-image.tar.gz | docker load; cp /root/ChamadaDiscipulado/deploy-artifacts/docker-compose.yml /root/ChamadaDiscipulado/docker-compose.yml; pm2 delete chamada-discipulado || true; cd /root/ChamadaDiscipulado; docker compose up -d --remove-orphans; curl --fail --silent http://127.0.0.1:2000/ >/dev/null; rm -rf /root/ChamadaDiscipulado/deploy-artifacts'

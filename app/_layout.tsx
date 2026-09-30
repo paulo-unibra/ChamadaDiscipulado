@@ -4,23 +4,32 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { SchoolDataProvider } from '@/context/school-data-context';
+import { AuthProvider, useAuth } from '@/context/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
   anchor: '(tabs)',
 };
 
-export default function RootLayout() {
+function AppNavigator() {
   const colorScheme = useColorScheme();
+  const { token, loading } = useAuth();
 
   return (
-    <SchoolDataProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        </Stack>
-        <StatusBar style="dark" />
-      </ThemeProvider>
-    </SchoolDataProvider>
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <Stack>
+        {loading || !token ? <Stack.Screen name="login" options={{ headerShown: false }} /> : <Stack.Screen name="(tabs)" options={{ headerShown: false }} />}
+      </Stack>
+      <StatusBar style="dark" />
+    </ThemeProvider>
   );
+}
+
+export default function RootLayout() {
+  return <AuthProvider><AuthenticatedApp /></AuthProvider>;
+}
+
+function AuthenticatedApp() {
+  const { token, loading } = useAuth();
+  return loading || !token ? <AppNavigator /> : <SchoolDataProvider><AppNavigator /></SchoolDataProvider>;
 }
