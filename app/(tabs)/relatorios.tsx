@@ -1,4 +1,5 @@
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
+import { useRouter, type Href } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ScreenShell } from '@/components/app/screen-shell';
@@ -12,6 +13,7 @@ function fakeExport(kind: string) {
 }
 
 export default function ReportsScreen() {
+  const router = useRouter();
   const { classes, students, teachers, attendanceRecords, modeLabel } = useSchoolData();
 
   return (
@@ -31,6 +33,12 @@ export default function ReportsScreen() {
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(110).duration(470)}>
+        <SectionCard title="Relatório de frequência" description="Consulte presença por aluno, filtre por turma e período e exporte os resultados.">
+          <ButtonGhost title="Abrir relatório de frequência" onPress={() => router.push('/frequencia' as Href)} />
+        </SectionCard>
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(150).duration(470)}>
         <SectionCard title="Tipos de exportacao" description="Atalhos para exportar em multiplos formatos.">
           <View style={styles.buttonsWrap}>
             <ButtonGhost title="Exportar PDF (geral)" onPress={() => fakeExport('PDF geral')} />

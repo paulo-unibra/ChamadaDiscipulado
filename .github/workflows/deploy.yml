@@ -31,7 +31,7 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: https://discipulado.bibliafoco.com.br/api
       - name: Configure Apache client-side routing
         run: |
-          printf 'Options -MultiViews\nRewriteEngine On\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule ^ index.html [QSA,L]\n' > dist/.htaccess
+          printf 'Options -MultiViews\nRewriteEngine On\nRewriteRule ^relatorios/frequencia\\.html$ /frequencia [R=302,L]\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule ^ index.html [QSA,L]\n' > dist/.htaccess
 
       - name: Build API Docker image
         run: docker build -t chamada-discipulado-api:latest ./api
@@ -58,8 +58,7 @@ jobs:
           ssh "$DEPLOY_USER@$DEPLOY_HOST" 'mkdir -p /root/ChamadaDiscipulado/deploy-artifacts'
           scp chamada-api-image.tar.gz docker-compose.yml "$DEPLOY_USER@$DEPLOY_HOST:/root/ChamadaDiscipulado/deploy-artifacts/"
           rsync -az dist/ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/discipulado/"
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" 'mkdir -p /var/www/discipulado/relatorios'
-          scp web/frequencia.html "$DEPLOY_USER@$DEPLOY_HOST:/var/www/discipulado/relatorios/frequencia.html"
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" 'rm -f /var/www/discipulado/relatorios/frequencia.html'
 
       - name: Activate deployment
         env:

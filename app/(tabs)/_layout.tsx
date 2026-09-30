@@ -63,6 +63,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <MaterialIcons size={24} name="assessment" color={color} />,
         }}
       />
+      <Tabs.Screen name="frequencia" options={{ href: null }} />
     </Tabs>
   );
 }
