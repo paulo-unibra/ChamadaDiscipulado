@@ -18,7 +18,12 @@ function AppNavigator() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
-        {loading || !token ? <Stack.Screen name="login" options={{ headerShown: false }} /> : <Stack.Screen name="(tabs)" options={{ headerShown: false }} />}
+        <Stack.Protected guard={loading || !token}>
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={!loading && Boolean(token)}>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        </Stack.Protected>
       </Stack>
       <StatusBar style="dark" />
     </ThemeProvider>
