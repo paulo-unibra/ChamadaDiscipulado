@@ -25,7 +25,7 @@ function AppNavigator() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack.Protected>
       </Stack>
-      <StatusBar style="dark" />
+      <StatusBar style={token ? 'light' : 'dark'} />
     </ThemeProvider>
   );
 }
