@@ -8,7 +8,7 @@ export default function LoginScreen() {
   const router = useRouter()
   const { setToken } = useAuth()
   const [step, setStep] = useState<'login' | 'mfa' | 'password'>('login')
-  const [email, setEmail] = useState('pr838908@gmail.com')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [challenge, setChallenge] = useState('')
@@ -40,7 +40,7 @@ export default function LoginScreen() {
     <Text style={styles.eyebrow}>CHAMADA DISCIPULADO</Text>
     <Text style={styles.title}>{step === 'mfa' ? 'Confirme seu acesso' : step === 'password' ? 'Alterar senha' : 'Bem-vindo de volta'}</Text>
     <Text style={styles.subtitle}>{step === 'mfa' ? `Digite o código enviado para ${email}` : 'Acesse o painel de chamadas da escola bíblica.'}</Text>
-    {step === 'login' && <><Text style={styles.label}>E-mail</Text><TextInput style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address"/><Text style={styles.label}>Senha</Text><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry onSubmitEditing={login}/></>}
+    {step === 'login' && <><Text style={styles.label}>E-mail</Text><TextInput style={styles.input} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="seu@email.com"/><Text style={styles.label}>Senha</Text><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry onSubmitEditing={login}/></>}
     {step === 'mfa' && <><Text style={styles.label}>Código de verificação</Text><TextInput style={[styles.input, styles.code]} value={code} onChangeText={setCode} keyboardType="number-pad" maxLength={6} placeholder="000000"/></>}
     {step === 'password' && <><Text style={styles.label}>Senha atual</Text><TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry/><Text style={styles.label}>Nova senha (mínimo 8 caracteres)</Text><TextInput style={styles.input} value={code} onChangeText={setCode} secureTextEntry/></>}
     {!!message && <Text style={styles.message}>{message}</Text>}
