@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Pressable,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -35,7 +36,7 @@ export default function LoginScreen() {
   const [gaze, setGaze] = useState<Gaze>({ x: 0, y: 0 })
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return
 
     const followPointer = (event: PointerEvent) => {
       setGaze({
