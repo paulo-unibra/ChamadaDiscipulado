@@ -9,6 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { API_BASE_URL } from '@/constants/api'
 import { useAuth } from '@/context/auth-context'
@@ -127,8 +128,7 @@ export default function LoginScreen() {
               <Text style={styles.brandName}>CHAMADA DISCIPULADO</Text>
             </View>
 
-            <View style={styles.artCopy}>
-              <Text style={styles.artKicker}>PRESENÇA QUE FAZ CRESCER</Text>
+            <View style={[styles.artCopy, !isWide && styles.artCopyCompact]}>
               <Text style={styles.artTitle}>Caminhamos juntos.</Text>
               <Text style={styles.artSubtitle}>
                 Um espaço simples para cuidar de cada encontro e de cada pessoa.
@@ -199,9 +199,6 @@ export default function LoginScreen() {
 
           <View style={[styles.formPanel, isWide ? styles.formPanelWide : styles.formPanelNarrow]}>
             <View style={styles.formContent}>
-              <Text style={styles.formEyebrow}>
-                {step === 'mfa' ? 'SEGURANÇA DA CONTA' : 'ACESSO À PLATAFORMA'}
-              </Text>
               <Text style={styles.title}>{title}</Text>
               <Text style={styles.subtitle}>{subtitle}</Text>
 
@@ -311,7 +308,7 @@ export default function LoginScreen() {
                           ? 'Confirmar código'
                           : 'Salvar nova senha'}
                     </Text>
-                    <Text style={styles.buttonArrow}>→</Text>
+                    <Ionicons name="arrow-forward" size={19} color="#e6cb8c" />
                   </>
                 )}
               </Pressable>
@@ -424,11 +421,8 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     zIndex: 2,
   },
-  artKicker: {
-    color: '#e3c784',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.7,
+  artCopyCompact: {
+    display: 'none',
   },
   artTitle: {
     color: '#fffdf6',
@@ -799,12 +793,6 @@ const styles = StyleSheet.create({
     maxWidth: 410,
     alignSelf: 'center',
   },
-  formEyebrow: {
-    color: '#66806b',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-  },
   title: {
     color: '#20382b',
     fontSize: 30,
@@ -871,12 +859,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  buttonArrow: {
-    color: '#e6cb8c',
-    fontSize: 19,
-    fontWeight: '700',
-    marginTop: -2,
-  },
   messageBox: {
     paddingHorizontal: 13,
     paddingVertical: 11,
@@ -914,7 +896,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   formFootnote: {
-    color: '#909b91',
+    color: '#6f7b71',
     fontSize: 12,
     textAlign: 'center',
   },
