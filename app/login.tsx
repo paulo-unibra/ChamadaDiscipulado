@@ -201,8 +201,8 @@ export default function LoginScreen() {
                                     <View style={styles.pupil} />
                                     <View style={styles.eyeGlint} />
                                   </Animated.View>
+                  </Animated.View>
                   )}
-              </Animated.View>
             </View>
 
             <View style={[styles.artFooter, !isWide && styles.artFooterCompact]}>
