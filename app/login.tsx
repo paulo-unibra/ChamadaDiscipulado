@@ -35,27 +35,86 @@ export default function LoginScreen() {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const gaze = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current
+  const eyeOpacity = useRef(new Animated.Value(0)).current
+  const mascotStageRef = useRef<View | null>(null)
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return
 
+    let idleTimer: ReturnType<typeof setTimeout> | undefined
+    let trackingVisible = false
+    const reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
     const followPointer = (event: PointerEvent) => {
+      const stage = mascotStageRef.current as unknown as {
+        getBoundingClientRect?: () => { left: number; top: number; width: number; height: number }
+      } | null
+      const bounds = stage?.getBoundingClientRect?.()
+      if (!bounds) return
+
+      const eyeCenterX = bounds.left + bounds.width * 0.46
+      const eyeCenterY = bounds.top + bounds.height * 0.29
       const nextGaze = {
-        x: clamp((event.clientX / window.innerWidth - 0.5) * 2, -1, 1),
-        y: clamp((event.clientY / window.innerHeight - 0.5) * 2, -1, 1),
+        x: clamp((event.clientX - eyeCenterX) / (window.innerWidth * 0.5), -1, 1),
+        y: clamp((event.clientY - eyeCenterY) / (window.innerHeight * 0.52), -1, 1),
       }
 
-      Animated.spring(gaze, {
-        toValue: nextGaze,
-        speed: 18,
-        bounciness: 3,
-        useNativeDriver: false,
-      }).start()
+      if (reduceMotion) {
+        gaze.setValue(nextGaze)
+        eyeOpacity.setValue(1)
+      } else {
+        Animated.spring(gaze, {
+          toValue: nextGaze,
+          stiffness: 115,
+          damping: 24,
+          mass: 1,
+          overshootClamping: true,
+          useNativeDriver: false,
+        }).start()
+
+        if (!trackingVisible) {
+          trackingVisible = true
+          Animated.timing(eyeOpacity, {
+            toValue: 1,
+            duration: 130,
+            useNativeDriver: false,
+          }).start()
+        }
+      }
+
+      if (idleTimer) clearTimeout(idleTimer)
+      idleTimer = setTimeout(() => {
+        trackingVisible = false
+        if (reduceMotion) {
+          gaze.setValue({ x: 0, y: 0 })
+          eyeOpacity.setValue(0)
+          return
+        }
+
+        Animated.spring(gaze, {
+          toValue: { x: 0, y: 0 },
+          stiffness: 90,
+          damping: 24,
+          mass: 1,
+          overshootClamping: true,
+          useNativeDriver: false,
+        }).start()
+        Animated.timing(eyeOpacity, {
+          toValue: 0,
+          duration: 240,
+          useNativeDriver: false,
+        }).start()
+      }, 700)
     }
 
     window.addEventListener('pointermove', followPointer, { passive: true })
-    return () => window.removeEventListener('pointermove', followPointer)
-  }, [gaze])
+    return () => {
+      if (idleTimer) clearTimeout(idleTimer)
+      window.removeEventListener('pointermove', followPointer)
+    }
+  }, [gaze, eyeOpacity])
 
   const headX = gaze.x.interpolate({ inputRange: [-1, 1], outputRange: [-8, 8] })
   const headY = gaze.y.interpolate({ inputRange: [-1, 1], outputRange: [-4, 4] })
@@ -150,6 +209,7 @@ export default function LoginScreen() {
             <View
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
+              ref={mascotStageRef}
               style={[styles.mascotStage, isWide ? styles.mascotStageWide : styles.mascotStageNarrow]}
             >
               {Platform.OS === 'web'
@@ -163,6 +223,10 @@ export default function LoginScreen() {
                     'aria-hidden': true,
                     style: {
                       display: 'block',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      zIndex: 0,
                       width: '100%',
                       height: '100%',
                       objectFit: 'contain',
@@ -203,6 +267,22 @@ export default function LoginScreen() {
                                   </Animated.View>
                   </Animated.View>
                   )}
+              {Platform.OS === 'web' && (
+                <>
+                  <Animated.View style={[styles.cursorEye, styles.cursorEyeLeft, { opacity: eyeOpacity }]}>
+                    <Animated.View style={[styles.cursorIris, { transform: [{ translateX: eyeX }, { translateY: eyeY }] }]}>
+                      <View style={styles.cursorPupil} />
+                      <View style={styles.cursorGlint} />
+                    </Animated.View>
+                  </Animated.View>
+                  <Animated.View style={[styles.cursorEye, styles.cursorEyeRight, { opacity: eyeOpacity }]}>
+                    <Animated.View style={[styles.cursorIris, { transform: [{ translateX: eyeX }, { translateY: eyeY }] }]}>
+                      <View style={styles.cursorPupil} />
+                      <View style={styles.cursorGlint} />
+                    </Animated.View>
+                  </Animated.View>
+                </>
+              )}
             </View>
 
             <View style={[styles.artFooter, !isWide && styles.artFooterCompact]}>
@@ -452,6 +532,7 @@ const styles = StyleSheet.create({
   },
   mascotStage: {
     alignSelf: 'center',
+    position: 'relative',
     marginTop: 6,
     zIndex: 1,
   },
@@ -471,6 +552,51 @@ const styles = StyleSheet.create({
   mascotImage: {
     width: '100%',
     height: '100%',
+  },
+  cursorEye: {
+    position: 'absolute',
+    top: '27.2%',
+    width: '15.2%',
+    height: '4.5%',
+    borderRadius: 50,
+    backgroundColor: '#fffdf8',
+    borderWidth: 0.5,
+    borderColor: '#ded8ca',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    zIndex: 2,
+  },
+  cursorEyeLeft: {
+    left: '30.3%',
+  },
+  cursorEyeRight: {
+    left: '50.7%',
+  },
+  cursorIris: {
+    width: '46%',
+    height: '94%',
+    borderRadius: 50,
+    backgroundColor: '#819361',
+    borderWidth: 1,
+    borderColor: '#526744',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cursorPupil: {
+    width: '36%',
+    height: '42%',
+    borderRadius: 50,
+    backgroundColor: '#24382d',
+  },
+  cursorGlint: {
+    position: 'absolute',
+    top: '13%',
+    left: '20%',
+    width: '18%',
+    height: '18%',
+    borderRadius: 50,
+    backgroundColor: '#fff',
   },
   eyeIris: {
     position: 'absolute',
