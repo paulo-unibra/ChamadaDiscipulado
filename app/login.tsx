@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { createElement, useEffect, useRef, useState } from 'react'
 import { Image } from 'expo-image'
 import {
   ActivityIndicator,
@@ -152,37 +152,56 @@ export default function LoginScreen() {
               importantForAccessibility="no-hide-descendants"
               style={[styles.mascotStage, isWide ? styles.mascotStageWide : styles.mascotStageNarrow]}
             >
-              <Animated.View
-                style={[
-                  styles.mascotMotion,
-                  { transform: [{ translateX: headX }, { translateY: headY }, { rotate: headTilt }] },
-                ]}
-              >
-                <Image
-                  source={require('../assets/images/login-mascot.webp')}
-                  style={styles.mascotImage}
-                  contentFit="contain"
-                />
-                <Animated.View
-                  style={[
-                    styles.eyeIris,
-                    styles.eyeLeft,
-                    { transform: [{ translateX: eyeX }, { translateY: eyeY }] },
-                  ]}
-                >
-                  <View style={styles.pupil} />
-                  <View style={styles.eyeGlint} />
-                </Animated.View>
-                <Animated.View
-                  style={[
-                    styles.eyeIris,
-                    styles.eyeRight,
-                    { transform: [{ translateX: eyeX }, { translateY: eyeY }] },
-                  ]}
-                >
-                  <View style={styles.pupil} />
-                  <View style={styles.eyeGlint} />
-                </Animated.View>
+              {Platform.OS === 'web'
+                ? createElement('video' as any, {
+                    src: require('../assets/videos/login-mascot.mp4'),
+                    autoPlay: true,
+                    loop: true,
+                    muted: true,
+                    playsInline: true,
+                    preload: 'auto',
+                    'aria-hidden': true,
+                    style: {
+                      display: 'block',
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      backgroundColor: '#f4f6f2',
+                    },
+                  })
+                : (
+                  <Animated.View
+                                  style={[
+                                    styles.mascotMotion,
+                                    { transform: [{ translateX: headX }, { translateY: headY }, { rotate: headTilt }] },
+                                  ]}
+                                >
+                                  <Image
+                                    source={require('../assets/images/login-mascot.webp')}
+                                    style={styles.mascotImage}
+                                    contentFit="contain"
+                                  />
+                                  <Animated.View
+                                    style={[
+                                      styles.eyeIris,
+                                      styles.eyeLeft,
+                                      { transform: [{ translateX: eyeX }, { translateY: eyeY }] },
+                                    ]}
+                                  >
+                                    <View style={styles.pupil} />
+                                    <View style={styles.eyeGlint} />
+                                  </Animated.View>
+                                  <Animated.View
+                                    style={[
+                                      styles.eyeIris,
+                                      styles.eyeRight,
+                                      { transform: [{ translateX: eyeX }, { translateY: eyeY }] },
+                                    ]}
+                                  >
+                                    <View style={styles.pupil} />
+                                    <View style={styles.eyeGlint} />
+                                  </Animated.View>
+                  )}
               </Animated.View>
             </View>
 
@@ -377,7 +396,7 @@ const styles = StyleSheet.create({
   },
   artPanelNarrow: {
     width: '100%',
-    minHeight: 290,
+    minHeight: 335,
     paddingTop: 20,
     paddingBottom: 8,
     paddingHorizontal: 22,
@@ -437,12 +456,12 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   mascotStageWide: {
-    width: 310,
-    height: 320,
+    width: 264,
+    height: 470,
   },
   mascotStageNarrow: {
-    width: 245,
-    height: 250,
+    width: 158,
+    height: 281,
     marginTop: 0,
   },
   mascotMotion: {
