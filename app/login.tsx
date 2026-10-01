@@ -1,9 +1,7 @@
-import { createElement, useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Image } from 'expo-image'
 import {
   ActivityIndicator,
-  Animated,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,33 +17,6 @@ import { useAuth } from '@/context/auth-context'
 
 type LoginStep = 'login' | 'mfa' | 'password'
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value))
-
-const gazeFrames = [
-  { source: require('../assets/images/login-gaze/center.webp'), x: 0, y: 0 },
-  { source: require('../assets/images/login-gaze/left.webp'), x: -1, y: 0 },
-  { source: require('../assets/images/login-gaze/right.webp'), x: 1, y: 0 },
-  { source: require('../assets/images/login-gaze/up.webp'), x: 0, y: -1 },
-  { source: require('../assets/images/login-gaze/down.webp'), x: 0, y: 1 },
-] as const
-
-const closestGazeFrame = (x: number, y: number, currentIndex: number) => {
-  const score = (index: number) => {
-    const frame = gazeFrames[index]
-    return (x - frame.x) ** 2 + (y - frame.y) ** 2
-  }
-
-  let nearestIndex = 0
-  for (let index = 1; index < gazeFrames.length; index += 1) {
-    if (score(index) < score(nearestIndex)) nearestIndex = index
-  }
-
-  return nearestIndex === currentIndex || score(nearestIndex) + 0.08 >= score(currentIndex)
-    ? currentIndex
-    : nearestIndex
-}
-
 export default function LoginScreen() {
   const router = useRouter()
   const { setToken } = useAuth()
@@ -58,74 +29,6 @@ export default function LoginScreen() {
   const [challenge, setChallenge] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  const [cursorPose, setCursorPose] = useState(0)
-  const cursorPoseRef = useRef(0)
-  const cursorPoseOpacity = useRef(new Animated.Value(0)).current
-  const mascotStageRef = useRef<View | null>(null)
-
-  useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return
-
-    let idleTimer: ReturnType<typeof setTimeout> | undefined
-    let poseVisible = false
-    const reduceMotion =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-    const followPointer = (event: PointerEvent) => {
-      const stage = mascotStageRef.current as unknown as {
-        getBoundingClientRect?: () => { left: number; top: number; width: number; height: number }
-      } | null
-      const bounds = stage?.getBoundingClientRect?.()
-      if (!bounds) return
-
-      const eyeCenterX = bounds.left + bounds.width * 0.46
-      const eyeCenterY = bounds.top + bounds.height * 0.29
-      const x = clamp((event.clientX - eyeCenterX) / (window.innerWidth * 0.5), -1, 1)
-      const y = clamp((event.clientY - eyeCenterY) / (window.innerHeight * 0.52), -1, 1)
-      const nextPose = closestGazeFrame(x, y, cursorPoseRef.current)
-
-      if (nextPose !== cursorPoseRef.current) {
-        cursorPoseRef.current = nextPose
-        setCursorPose(nextPose)
-      }
-
-      if (reduceMotion) {
-        cursorPoseOpacity.setValue(1)
-      } else if (!poseVisible) {
-        poseVisible = true
-        Animated.timing(cursorPoseOpacity, {
-          toValue: 1,
-          duration: 130,
-          useNativeDriver: false,
-        }).start()
-      }
-
-      if (idleTimer) clearTimeout(idleTimer)
-      idleTimer = setTimeout(() => {
-        poseVisible = false
-        cursorPoseRef.current = 0
-        setCursorPose(0)
-        if (reduceMotion) {
-          cursorPoseOpacity.setValue(0)
-          return
-        }
-
-        Animated.timing(cursorPoseOpacity, {
-          toValue: 0,
-          duration: 240,
-          useNativeDriver: false,
-        }).start()
-      }, 700)
-    }
-
-    window.addEventListener('pointermove', followPointer, { passive: true })
-    return () => {
-      if (idleTimer) clearTimeout(idleTimer)
-      window.removeEventListener('pointermove', followPointer)
-    }
-  }, [cursorPoseOpacity])
-
   async function submit(path: string, data: object) {
     setBusy(true)
     setMessage('')
@@ -213,50 +116,13 @@ export default function LoginScreen() {
             <View
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
-              ref={mascotStageRef}
               style={[styles.mascotStage, isWide ? styles.mascotStageWide : styles.mascotStageNarrow]}
             >
-              {Platform.OS === 'web'
-                ? createElement('video' as any, {
-                    src: require('../assets/videos/login-mascot.mp4'),
-                    autoPlay: true,
-                    loop: true,
-                    muted: true,
-                    playsInline: true,
-                    preload: 'auto',
-                    'aria-hidden': true,
-                    style: {
-                      display: 'block',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      zIndex: 0,
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'contain',
-                      backgroundColor: '#f4f6f2',
-                    },
-                  })
-                : (
-                  <Image
-                    source={require('../assets/images/login-mascot.webp')}
-                    style={styles.mascotImage}
-                    contentFit="contain"
-                  />
-                  )}
-              {Platform.OS === 'web' && (
-                <Animated.View
-                  pointerEvents="none"
-                  style={[styles.cursorPoseLayer, { opacity: cursorPoseOpacity }]}
-                >
-                  <Image
-                    source={gazeFrames[cursorPose].source}
-                    style={styles.cursorPoseImage}
-                    contentFit="contain"
-                    transition={90}
-                  />
-                </Animated.View>
-              )}
+              <Image
+                source={require('../assets/images/login-mascot.webp')}
+                style={styles.mascotImage}
+                contentFit="contain"
+              />
             </View>
 
             <View style={[styles.artFooter, !isWide && styles.artFooterCompact]}>
@@ -439,7 +305,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f4f6f2',
     overflow: 'hidden',
     paddingHorizontal: 34,
-    position: 'relative',
   },
   artPanelWide: {
     width: '48%',
@@ -450,7 +315,7 @@ const styles = StyleSheet.create({
   },
   artPanelNarrow: {
     width: '100%',
-    minHeight: 335,
+    minHeight: 290,
     paddingTop: 20,
     paddingBottom: 8,
     paddingHorizontal: 22,
@@ -511,68 +376,17 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   mascotStageWide: {
-    width: 264,
-    height: 470,
+    width: 310,
+    height: 320,
   },
   mascotStageNarrow: {
-    width: 158,
-    height: 281,
+    width: 245,
+    height: 250,
     marginTop: 0,
-  },
-  mascotMotion: {
-    width: '100%',
-    height: '100%',
   },
   mascotImage: {
     width: '100%',
     height: '100%',
-  },
-  cursorPoseLayer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 2,
-  },
-  cursorPoseImage: {
-    width: '100%',
-    height: '100%',
-  },
-  eyeIris: {
-    position: 'absolute',
-    width: '8%',
-    height: '8%',
-    borderRadius: 50,
-    backgroundColor: '#819361',
-    borderWidth: 1,
-    borderColor: '#526744',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  eyeLeft: {
-    left: '40.5%',
-    top: '28.2%',
-  },
-  eyeRight: {
-    left: '56.0%',
-    top: '28.2%',
-  },
-  pupil: {
-    width: '48%',
-    height: '60%',
-    borderRadius: 50,
-    backgroundColor: '#24382d',
-  },
-  eyeGlint: {
-    position: 'absolute',
-    top: '18%',
-    left: '23%',
-    width: '20%',
-    height: '20%',
-    borderRadius: 50,
-    backgroundColor: '#fff',
   },
   artFooter: {
     flexDirection: 'row',
