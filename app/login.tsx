@@ -22,6 +22,30 @@ type LoginStep = 'login' | 'mfa' | 'password'
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value))
 
+const gazeFrames = [
+  { source: require('../assets/images/login-gaze/center.webp'), x: 0, y: 0 },
+  { source: require('../assets/images/login-gaze/left.webp'), x: -1, y: 0 },
+  { source: require('../assets/images/login-gaze/right.webp'), x: 1, y: 0 },
+  { source: require('../assets/images/login-gaze/up.webp'), x: 0, y: -1 },
+  { source: require('../assets/images/login-gaze/down.webp'), x: 0, y: 1 },
+] as const
+
+const closestGazeFrame = (x: number, y: number, currentIndex: number) => {
+  const score = (index: number) => {
+    const frame = gazeFrames[index]
+    return (x - frame.x) ** 2 + (y - frame.y) ** 2
+  }
+
+  let nearestIndex = 0
+  for (let index = 1; index < gazeFrames.length; index += 1) {
+    if (score(index) < score(nearestIndex)) nearestIndex = index
+  }
+
+  return nearestIndex === currentIndex || score(nearestIndex) + 0.08 >= score(currentIndex)
+    ? currentIndex
+    : nearestIndex
+}
+
 export default function LoginScreen() {
   const router = useRouter()
   const { setToken } = useAuth()
@@ -34,15 +58,16 @@ export default function LoginScreen() {
   const [challenge, setChallenge] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
-  const gaze = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current
-  const eyeOpacity = useRef(new Animated.Value(0)).current
+  const [cursorPose, setCursorPose] = useState(0)
+  const cursorPoseRef = useRef(0)
+  const cursorPoseOpacity = useRef(new Animated.Value(0)).current
   const mascotStageRef = useRef<View | null>(null)
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return
 
     let idleTimer: ReturnType<typeof setTimeout> | undefined
-    let trackingVisible = false
+    let poseVisible = false
     const reduceMotion =
       typeof window.matchMedia === 'function' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -56,52 +81,37 @@ export default function LoginScreen() {
 
       const eyeCenterX = bounds.left + bounds.width * 0.46
       const eyeCenterY = bounds.top + bounds.height * 0.29
-      const nextGaze = {
-        x: clamp((event.clientX - eyeCenterX) / (window.innerWidth * 0.5), -1, 1),
-        y: clamp((event.clientY - eyeCenterY) / (window.innerHeight * 0.52), -1, 1),
+      const x = clamp((event.clientX - eyeCenterX) / (window.innerWidth * 0.5), -1, 1)
+      const y = clamp((event.clientY - eyeCenterY) / (window.innerHeight * 0.52), -1, 1)
+      const nextPose = closestGazeFrame(x, y, cursorPoseRef.current)
+
+      if (nextPose !== cursorPoseRef.current) {
+        cursorPoseRef.current = nextPose
+        setCursorPose(nextPose)
       }
 
       if (reduceMotion) {
-        gaze.setValue(nextGaze)
-        eyeOpacity.setValue(1)
-      } else {
-        Animated.spring(gaze, {
-          toValue: nextGaze,
-          stiffness: 115,
-          damping: 24,
-          mass: 1,
-          overshootClamping: true,
+        cursorPoseOpacity.setValue(1)
+      } else if (!poseVisible) {
+        poseVisible = true
+        Animated.timing(cursorPoseOpacity, {
+          toValue: 1,
+          duration: 130,
           useNativeDriver: false,
         }).start()
-
-        if (!trackingVisible) {
-          trackingVisible = true
-          Animated.timing(eyeOpacity, {
-            toValue: 1,
-            duration: 130,
-            useNativeDriver: false,
-          }).start()
-        }
       }
 
       if (idleTimer) clearTimeout(idleTimer)
       idleTimer = setTimeout(() => {
-        trackingVisible = false
+        poseVisible = false
+        cursorPoseRef.current = 0
+        setCursorPose(0)
         if (reduceMotion) {
-          gaze.setValue({ x: 0, y: 0 })
-          eyeOpacity.setValue(0)
+          cursorPoseOpacity.setValue(0)
           return
         }
 
-        Animated.spring(gaze, {
-          toValue: { x: 0, y: 0 },
-          stiffness: 90,
-          damping: 24,
-          mass: 1,
-          overshootClamping: true,
-          useNativeDriver: false,
-        }).start()
-        Animated.timing(eyeOpacity, {
+        Animated.timing(cursorPoseOpacity, {
           toValue: 0,
           duration: 240,
           useNativeDriver: false,
@@ -114,13 +124,7 @@ export default function LoginScreen() {
       if (idleTimer) clearTimeout(idleTimer)
       window.removeEventListener('pointermove', followPointer)
     }
-  }, [gaze, eyeOpacity])
-
-  const headX = gaze.x.interpolate({ inputRange: [-1, 1], outputRange: [-8, 8] })
-  const headY = gaze.y.interpolate({ inputRange: [-1, 1], outputRange: [-4, 4] })
-  const headTilt = gaze.x.interpolate({ inputRange: [-1, 1], outputRange: ['-4deg', '4deg'] })
-  const eyeX = gaze.x.interpolate({ inputRange: [-1, 1], outputRange: [-5, 5] })
-  const eyeY = gaze.y.interpolate({ inputRange: [-1, 1], outputRange: [-3, 3] })
+  }, [cursorPoseOpacity])
 
   async function submit(path: string, data: object) {
     setBusy(true)
@@ -234,54 +238,24 @@ export default function LoginScreen() {
                     },
                   })
                 : (
-                  <Animated.View
-                                  style={[
-                                    styles.mascotMotion,
-                                    { transform: [{ translateX: headX }, { translateY: headY }, { rotate: headTilt }] },
-                                  ]}
-                                >
-                                  <Image
-                                    source={require('../assets/images/login-mascot.webp')}
-                                    style={styles.mascotImage}
-                                    contentFit="contain"
-                                  />
-                                  <Animated.View
-                                    style={[
-                                      styles.eyeIris,
-                                      styles.eyeLeft,
-                                      { transform: [{ translateX: eyeX }, { translateY: eyeY }] },
-                                    ]}
-                                  >
-                                    <View style={styles.pupil} />
-                                    <View style={styles.eyeGlint} />
-                                  </Animated.View>
-                                  <Animated.View
-                                    style={[
-                                      styles.eyeIris,
-                                      styles.eyeRight,
-                                      { transform: [{ translateX: eyeX }, { translateY: eyeY }] },
-                                    ]}
-                                  >
-                                    <View style={styles.pupil} />
-                                    <View style={styles.eyeGlint} />
-                                  </Animated.View>
-                  </Animated.View>
+                  <Image
+                    source={require('../assets/images/login-mascot.webp')}
+                    style={styles.mascotImage}
+                    contentFit="contain"
+                  />
                   )}
               {Platform.OS === 'web' && (
-                <>
-                  <Animated.View style={[styles.cursorEye, styles.cursorEyeLeft, { opacity: eyeOpacity }]}>
-                    <Animated.View style={[styles.cursorIris, { transform: [{ translateX: eyeX }, { translateY: eyeY }] }]}>
-                      <View style={styles.cursorPupil} />
-                      <View style={styles.cursorGlint} />
-                    </Animated.View>
-                  </Animated.View>
-                  <Animated.View style={[styles.cursorEye, styles.cursorEyeRight, { opacity: eyeOpacity }]}>
-                    <Animated.View style={[styles.cursorIris, { transform: [{ translateX: eyeX }, { translateY: eyeY }] }]}>
-                      <View style={styles.cursorPupil} />
-                      <View style={styles.cursorGlint} />
-                    </Animated.View>
-                  </Animated.View>
-                </>
+                <Animated.View
+                  pointerEvents="none"
+                  style={[styles.cursorPoseLayer, { opacity: cursorPoseOpacity }]}
+                >
+                  <Image
+                    source={gazeFrames[cursorPose].source}
+                    style={styles.cursorPoseImage}
+                    contentFit="contain"
+                    transition={90}
+                  />
+                </Animated.View>
               )}
             </View>
 
@@ -553,50 +527,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  cursorEye: {
+  cursorPoseLayer: {
     position: 'absolute',
-    top: '27.2%',
-    width: '15.2%',
-    height: '4.5%',
-    borderRadius: 50,
-    backgroundColor: '#fffdf8',
-    borderWidth: 0.5,
-    borderColor: '#ded8ca',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     zIndex: 2,
   },
-  cursorEyeLeft: {
-    left: '30.3%',
-  },
-  cursorEyeRight: {
-    left: '50.7%',
-  },
-  cursorIris: {
-    width: '46%',
-    height: '94%',
-    borderRadius: 50,
-    backgroundColor: '#819361',
-    borderWidth: 1,
-    borderColor: '#526744',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cursorPupil: {
-    width: '36%',
-    height: '42%',
-    borderRadius: 50,
-    backgroundColor: '#24382d',
-  },
-  cursorGlint: {
-    position: 'absolute',
-    top: '13%',
-    left: '20%',
-    width: '18%',
-    height: '18%',
-    borderRadius: 50,
-    backgroundColor: '#fff',
+  cursorPoseImage: {
+    width: '100%',
+    height: '100%',
   },
   eyeIris: {
     position: 'absolute',
