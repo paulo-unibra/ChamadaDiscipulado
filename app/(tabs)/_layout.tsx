@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { API_BASE_URL } from '@/constants/api';
 import { HapticTab } from '@/components/haptic-tab';
-import { AppTypography } from '@/constants/ui';
+import { AppPalette, AppTypography } from '@/constants/ui';
 import { useAuth } from '@/context/auth-context';
 
 type NavLink = { label: string; route: string };
@@ -34,7 +34,7 @@ function MenuLink({ item, active, onPress, collapsed = false, recent = false, ic
   const [hovered, setHovered] = useState(false);
   return (
     <Pressable onPress={onPress} onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)} accessibilityRole="link" accessibilityState={{ selected: active }} style={({ pressed }) => [styles.menuLink, active ? styles.menuLinkActive : null, pressed ? styles.menuLinkPressed : null, collapsed ? styles.menuLinkCollapsed : null]}>
-      {icon ? <MaterialIcons name={icon} size={21} color={active ? '#1B56A3' : '#5B6B7F'} /> : null}
+      {icon ? <MaterialIcons name={icon} size={20} color={active ? AppPalette.primary : '#5B6B7F'} /> : null}
       {recent ? <MaterialIcons name="history" size={18} color={active ? '#1B56A3' : '#98A2B3'} /> : null}
       {!collapsed ? <Text numberOfLines={1} style={[styles.menuLinkText, active ? styles.menuLinkTextActive : null, recent ? styles.menuLinkRecent : null]}>{item.label}</Text> : null}
       {collapsed ? <Text style={[styles.menuTooltip, hovered ? styles.menuTooltipVisible : null]}>{item.label}</Text> : null}
@@ -97,7 +97,7 @@ function SideMenu({
           target.measure?.((_x, _y, _width, _height, _pageX, pageY) => setFlyout((current) => current?.group.label === group.label ? null : { group, top: pageY }));
           if (!target.measure) setFlyout((current) => current?.group.label === group.label ? null : { group, top: 100 });
         }} accessibilityRole="button" accessibilityState={{ expanded: flyout?.group.label === group.label }} style={[styles.menuLink, styles.railGroup, groupActive || flyout?.group.label === group.label ? styles.menuLinkActive : null]}>
-          <MaterialIcons name={group.icon} size={21} color={groupActive || flyout?.group.label === group.label ? '#1B56A3' : '#5B6B7F'} />
+          <MaterialIcons name={group.icon} size={21} color={groupActive || flyout?.group.label === group.label ? AppPalette.primary : '#5B6B7F'} />
           <Text style={[styles.menuTooltip, hoveredGroup === group.label ? styles.menuTooltipVisible : null]}>{group.label}</Text>
         </Pressable>
       );
@@ -106,9 +106,9 @@ function SideMenu({
     return (
       <View key={group.label} style={styles.groupBlock}>
         <Pressable onPress={() => setOpenGroup(groupExpanded && !term ? '' : group.label)} accessibilityRole="button" accessibilityState={{ expanded: groupExpanded }} style={[styles.groupToggle, groupActive ? styles.groupToggleActive : null]}>
-          <MaterialIcons name={group.icon} size={19} color={groupActive ? '#1B56A3' : '#7B8794'} />
+          <MaterialIcons name={group.icon} size={19} color={groupActive ? AppPalette.primary : '#7B8794'} />
           <Text numberOfLines={1} style={[styles.groupTitle, groupActive ? styles.groupTitleActive : null]}>{group.label}</Text>
-          <MaterialIcons name={groupExpanded ? 'expand-less' : 'expand-more'} size={19} color={groupActive ? '#1B56A3' : '#B0B7C3'} />
+          <MaterialIcons name={groupExpanded ? 'expand-less' : 'expand-more'} size={19} color={groupActive ? AppPalette.primary : '#B0B7C3'} />
         </Pressable>
         {groupExpanded ? <View style={styles.submenu}>{group.items?.map((item) => <MenuLink key={item.route} item={item} active={isRouteActive(pathname, item.route)} onPress={() => navigate(item.route)} />)}</View> : null}
       </View>
@@ -258,12 +258,12 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  appRoot: { flex: 1, minHeight: '100%', backgroundColor: '#F7F8FA' },
-  topBar: { height: 60, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#2B3C5B', zIndex: 20 },
-  brandLine: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  appRoot: { flex: 1, minHeight: '100%', backgroundColor: AppPalette.background },
+  topBar: { height: 62, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#263A57', zIndex: 20, shadowColor: '#17283E', shadowOpacity: 0.12, shadowRadius: 8, elevation: 4 },
+  brandLine: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerMenuButton: { width: 32, height: 36, alignItems: 'center', justifyContent: 'center' },
   brandButton: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  brandText: { color: '#FFFFFF', fontFamily: AppTypography.bodyStrong, fontSize: 13, letterSpacing: 1.15 },
+  brandText: { color: '#FFFFFF', fontFamily: AppTypography.bodyStrong, fontSize: 12, letterSpacing: 1.05 },
   accountArea: { flexDirection: 'row', alignItems: 'center', gap: 12, position: 'relative' },
   accountEmail: { color: 'rgba(255,255,255,0.62)', fontSize: 11, fontFamily: AppTypography.body },
   accountTrigger: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 24 },
@@ -277,9 +277,9 @@ const styles = StyleSheet.create({
   accountLogout: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 8, borderRadius: 7 },
   accountLogoutText: { color: '#B42318', fontFamily: AppTypography.bodyStrong, fontSize: 13 },
   body: { flex: 1, minHeight: 0, flexDirection: 'row' },
-  sidebar: { height: '100%', flexDirection: 'column', backgroundColor: '#FDFDFD', borderRightWidth: 1, borderRightColor: '#EEF1F5', shadowColor: '#101828', shadowOpacity: 0.08, shadowRadius: 10, elevation: 3, zIndex: 12 },
-  sidebarExpanded: { width: 260 },
-  sidebarCollapsed: { width: 60 },
+  sidebar: { height: '100%', flexDirection: 'column', backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: '#E6EAF0', zIndex: 12 },
+  sidebarExpanded: { width: 248 },
+  sidebarCollapsed: { width: 64 },
   mobileSidebar: { width: 280, maxWidth: '82%', height: '100%', position: 'absolute', top: 0, left: 0, bottom: 0, zIndex: 40 },
   sidebarHeading: { minHeight: 42, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sidebarEyebrow: { color: '#98A2B3', fontFamily: AppTypography.bodyStrong, fontSize: 10, letterSpacing: 1.4 },
@@ -287,33 +287,33 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, minWidth: 0, paddingVertical: 0, color: '#344054', fontFamily: AppTypography.body, fontSize: 13, outlineStyle: 'none' } as never,
   menuScroll: { flex: 1, overflow: 'visible' },
   menuList: { paddingBottom: 14 },
-  menuLink: { minHeight: 37, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 10, borderLeftWidth: 3, borderLeftColor: 'transparent', position: 'relative' },
-  menuLinkActive: { backgroundColor: '#EAF1FA', borderLeftColor: '#1B56A3' },
-  menuLinkPressed: { backgroundColor: '#F7F9FC' },
+  menuLink: { minHeight: 40, marginHorizontal: 9, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 9, position: 'relative' },
+  menuLinkActive: { backgroundColor: '#EAF1FA' },
+  menuLinkPressed: { backgroundColor: '#F2F5F9' },
   menuLinkCollapsed: { justifyContent: 'center', paddingHorizontal: 0 },
   menuLinkText: { flex: 1, minWidth: 0, color: '#5B6B7F', fontFamily: AppTypography.body, fontSize: 13 },
-  menuLinkTextActive: { color: '#1B56A3', fontFamily: AppTypography.bodyStrong },
+  menuLinkTextActive: { color: AppPalette.primary, fontFamily: AppTypography.bodyStrong },
   menuLinkRecent: { color: '#7B8794' },
   menuTooltip: { display: 'none', position: 'absolute', left: 55, zIndex: 50, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: '#101828', color: '#FFFFFF', borderRadius: 6, fontSize: 12, whiteSpace: 'nowrap' } as never,
   menuTooltipVisible: { display: 'flex' } as never,
   collapsedSearch: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 0, marginBottom: 6 },
   railGroup: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 0 },
   groupBlock: { flexDirection: 'column' },
-  groupToggle: { minHeight: 39, paddingLeft: 13, paddingRight: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderLeftWidth: 3, borderLeftColor: 'transparent' },
-  groupToggleActive: { backgroundColor: '#EAF1FA', borderLeftColor: '#1B56A3' },
+  groupToggle: { minHeight: 40, marginHorizontal: 9, paddingLeft: 12, paddingRight: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 9 },
+  groupToggleActive: { backgroundColor: '#F4F7FB' },
   groupTitle: { flex: 1, minWidth: 0, color: '#344054', fontFamily: AppTypography.body, fontSize: 13 },
   groupTitleActive: { color: '#0D2B59', fontFamily: AppTypography.bodyStrong },
-  submenu: { paddingVertical: 4, paddingLeft: 30, paddingBottom: 8 },
+  submenu: { paddingVertical: 4, paddingLeft: 17, paddingBottom: 8 },
   emptySearch: { color: '#98A2B3', textAlign: 'center', padding: 20, fontFamily: AppTypography.body, fontSize: 12 },
   flyout: { position: 'absolute', left: 68, zIndex: 100, width: 238, paddingVertical: 6, backgroundColor: '#FFFFFF', borderRadius: 8, shadowColor: '#101828', shadowOpacity: 0.14, shadowRadius: 18, elevation: 10 },
   flyoutTitle: { paddingHorizontal: 12, paddingVertical: 7, color: '#B0B7C3', fontFamily: AppTypography.bodyStrong, fontSize: 10, letterSpacing: 1.1 },
   mainColumn: { flex: 1, minWidth: 0, flexDirection: 'column' },
-  breadcrumb: { height: 44, paddingHorizontal: 22, flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#EEF1F5' },
+  breadcrumb: { height: 46, paddingHorizontal: 28, flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E6EAF0' },
   breadcrumbHome: { color: '#7B8794', fontFamily: AppTypography.body, fontSize: 12 },
   breadcrumbParent: { color: '#7B8794', fontFamily: AppTypography.body, fontSize: 12 },
   breadcrumbSlash: { color: '#C3CAD4', fontFamily: AppTypography.body, fontSize: 12 },
-  breadcrumbCurrent: { color: '#344054', fontFamily: AppTypography.bodyStrong, fontSize: 13 },
-  tabsWrap: { flex: 1, minHeight: 0, backgroundColor: '#F3EDE3' },
-  mobileMenuLayer: { position: 'absolute', top: 60, left: 0, right: 0, bottom: 0, zIndex: 30 },
+  breadcrumbCurrent: { color: '#26364B', fontFamily: AppTypography.bodyStrong, fontSize: 12 },
+  tabsWrap: { flex: 1, minHeight: 0, backgroundColor: AppPalette.background },
+  mobileMenuLayer: { position: 'absolute', top: 62, left: 0, right: 0, bottom: 0, zIndex: 30 },
   drawerBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(16,24,40,0.38)' },
 });

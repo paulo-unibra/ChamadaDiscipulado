@@ -174,11 +174,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: AppPalette.border,
     borderRadius: 12,
-    padding: 10,
+    padding: 12,
     gap: 8,
     backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   teacherMain: {
+    flex: 1,
     gap: 2,
   },
   teacherName: {

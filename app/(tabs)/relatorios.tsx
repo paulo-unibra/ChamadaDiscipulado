@@ -9,7 +9,7 @@ import { AppPalette, AppTypography } from '@/constants/ui';
 
 function fakeExport(kind: string) {
   const timestamp = new Date().toISOString();
-  Alert.alert('Exportacao simulada', `${kind} gerado com sucesso (mock) em ${timestamp}.`);
+  Alert.alert('Exportação simulada', `${kind} gerado com sucesso (modo de demonstração) em ${timestamp}.`);
 }
 
 export default function ReportsScreen() {
@@ -18,8 +18,8 @@ export default function ReportsScreen() {
 
   return (
     <ScreenShell
-      title="Relatorios"
-      subtitle="Area dedicada para analises e exportacoes. Nesta fase, exportacao ainda esta em modo mock.">
+      title="Relatórios"
+      subtitle="Acompanhe a frequência da escola e acesse ferramentas para compartilhar os dados.">
       <Animated.View entering={FadeInDown.duration(470)}>
         <SectionCard title="Resumo rapido" description="Indicadores gerais para secretaria e lideranca.">
           <View style={styles.rowWrap}>
@@ -39,7 +39,7 @@ export default function ReportsScreen() {
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(150).duration(470)}>
-        <SectionCard title="Tipos de exportacao" description="Atalhos para exportar em multiplos formatos.">
+        <SectionCard title="Exportações" description="Atalhos de demonstração para compartilhar os dados em diferentes formatos.">
           <View style={styles.buttonsWrap}>
             <ButtonGhost title="Exportar PDF (geral)" onPress={() => fakeExport('PDF geral')} />
             <ButtonGhost title="Exportar Excel (geral)" onPress={() => fakeExport('Excel geral')} />
@@ -51,7 +51,7 @@ export default function ReportsScreen() {
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(200).duration(470)}>
-        <SectionCard title="Planejamento API" description="Proximas rotas para sincronizacao online real.">
+        <SectionCard title="Integração e documentação" description="Referências técnicas para as próximas etapas de integração.">
           <View style={styles.bulletWrap}>
             <Text style={styles.bullet}>- POST /students/import-csv</Text>
             <Text style={styles.bullet}>- POST /attendance/export/pdf</Text>

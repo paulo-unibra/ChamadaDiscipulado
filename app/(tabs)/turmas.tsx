@@ -451,9 +451,9 @@ const styles = StyleSheet.create({
   classItem: {
     borderWidth: 1,
     borderColor: AppPalette.border,
-    borderRadius: 14,
-    padding: 10,
-    gap: 10,
+    borderRadius: 12,
+    padding: 14,
+    gap: 12,
     backgroundColor: '#FFFFFF',
   },
   gridTwo: {
@@ -520,9 +520,9 @@ const styles = StyleSheet.create({
   studentRow: {
     borderWidth: 1,
     borderColor: AppPalette.border,
-    borderRadius: 10,
-    padding: 8,
-    backgroundColor: '#FFFCF8',
+    borderRadius: 9,
+    padding: 9,
+    backgroundColor: '#F8FAFC',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

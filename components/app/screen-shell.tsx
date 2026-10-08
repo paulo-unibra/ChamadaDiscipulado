@@ -1,5 +1,5 @@
 import { type PropsWithChildren } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AppPalette, AppTypography } from '@/constants/ui';
@@ -29,40 +29,46 @@ export function ScreenShell({ title, subtitle, children }: ScreenShellProps) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: AppPalette.background,
+    backgroundColor: Platform.OS === 'web' ? '#F3F5F8' : AppPalette.background,
   },
   content: {
     width: '100%',
-    maxWidth: 1320,
+    maxWidth: Platform.OS === 'web' ? 1080 : 1320,
     alignSelf: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    gap: 12,
+    paddingHorizontal: Platform.OS === 'web' ? 28 : 20,
+    paddingTop: Platform.OS === 'web' ? 18 : 0,
+    paddingBottom: Platform.OS === 'web' ? 36 : 20,
+    gap: Platform.OS === 'web' ? 18 : 12,
   },
   headerWrap: {
-    paddingTop: 6,
-    paddingBottom: 8,
-    gap: 5,
+    paddingHorizontal: Platform.OS === 'web' ? 22 : 0,
+    paddingVertical: Platform.OS === 'web' ? 18 : 6,
+    backgroundColor: Platform.OS === 'web' ? '#FFFFFF' : 'transparent',
+    borderRadius: Platform.OS === 'web' ? 14 : 0,
+    borderWidth: Platform.OS === 'web' ? 1 : 0,
+    borderColor: '#E6EAF0',
+    gap: Platform.OS === 'web' ? 4 : 5,
   },
   kicker: {
     color: AppPalette.primary,
-    fontSize: 12,
+    fontSize: Platform.OS === 'web' ? 10 : 12,
     fontFamily: AppTypography.bodyStrong,
-    letterSpacing: 1.6,
+    letterSpacing: Platform.OS === 'web' ? 1.35 : 1.6,
   },
   title: {
-    fontSize: 30,
+    fontSize: Platform.OS === 'web' ? 26 : 30,
     color: AppPalette.ink,
-    fontFamily: AppTypography.title,
-    letterSpacing: 0.4,
+    fontFamily: AppTypography.bodyStrong,
+    letterSpacing: 0,
   },
   subtitle: {
     color: AppPalette.inkMuted,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: Platform.OS === 'web' ? 13 : 14,
+    lineHeight: Platform.OS === 'web' ? 19 : 20,
     fontFamily: AppTypography.body,
   },
   bgOrbTop: {
+    display: Platform.OS === 'web' ? 'none' : 'flex',
     position: 'absolute',
     width: 220,
     height: 220,
@@ -72,6 +78,7 @@ const styles = StyleSheet.create({
     top: -50,
   },
   bgOrbBottom: {
+    display: Platform.OS === 'web' ? 'none' : 'flex',
     position: 'absolute',
     width: 260,
     height: 260,

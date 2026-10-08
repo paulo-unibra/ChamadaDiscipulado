@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useRouter, type Href } from "expo-router";
@@ -38,6 +38,7 @@ function formatDateToBr(value: string) {
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const {
     classes,
     teachers,
@@ -60,6 +61,7 @@ export default function DashboardScreen() {
   }, [classes, teachers, students, attendanceRecords]);
 
   const latestRecords = attendanceRecords.slice(0, 4);
+  const statCardWidth = width >= 1150 ? "23%" : width >= 760 ? "47%" : "100%";
   const todayLabel = new Intl.DateTimeFormat("pt-BR", {
     weekday: "long",
     day: "numeric",
@@ -96,7 +98,7 @@ export default function DashboardScreen() {
             { label: "Professores", value: stats.teachersCount, icon: "school" as const, tone: "green" as const },
             { label: "Chamadas hoje", value: stats.todayCount, icon: "fact-check" as const, tone: "amber" as const },
           ].map((item) => (
-            <View key={item.label} style={styles.statCard}>
+            <View key={item.label} style={[styles.statCard, { width: statCardWidth }]}>
               <View style={styles.statTop}><Text style={styles.statLabel}>{item.label}</Text><View style={[styles.statIcon, item.tone === "green" ? styles.icon_green : item.tone === "amber" ? styles.icon_amber : item.tone === "cyan" ? styles.icon_cyan : styles.icon_blue]}><MaterialIcons name={item.icon} size={19} color={item.tone === "green" ? "#238457" : item.tone === "amber" ? "#B7791F" : item.tone === "cyan" ? "#0787A5" : "#245DA1"} /></View></View>
               <Text style={styles.statValue}>{item.value}</Text>
               <Text style={styles.statDetail}>{item.label === "Chamadas hoje" ? "registros neste dia" : "no sistema"}</Text>
@@ -110,7 +112,7 @@ export default function DashboardScreen() {
           <MaterialIcons name="add" size={19} color="#FFFFFF" /><Text style={styles.shortcutPrimaryText}>Registrar chamada</Text><MaterialIcons name="arrow-forward" size={17} color="#FFFFFF" />
         </Pressable>
         <Pressable onPress={() => router.push("/relatorios" as Href)} style={({ pressed }) => [styles.shortcutSecondary, pressed && styles.pressed]}>
-          <MaterialIcons name="assessment" size={18} color="#1B56A3" /><Text style={styles.shortcutSecondaryText}>Ver relatórios</Text>
+          <MaterialIcons name="assessment" size={18} color={AppPalette.primary} /><Text style={styles.shortcutSecondaryText}>Ver relatórios</Text>
         </Pressable>
       </Animated.View>
 
@@ -200,10 +202,10 @@ export default function DashboardScreen() {
 
 const styles = StyleSheet.create({
   welcomeCard: {
-    minHeight: 158,
+    minHeight: 146,
     padding: 22,
-    borderRadius: 16,
-    backgroundColor: "#2B3C5B",
+    borderRadius: 14,
+    backgroundColor: "#263A57",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -224,14 +226,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 12,
+    width: "100%",
   },
   statCard: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "#E8EBED",
     borderRadius: 14,
-    flexGrow: 1,
-    flexBasis: "46%",
+    flexGrow: 0,
+    flexShrink: 0,
     padding: 15,
     shadowColor: "#233E52",
     shadowOpacity: 0.04,
@@ -245,11 +248,11 @@ const styles = StyleSheet.create({
   icon_green: { backgroundColor: "#E8F6EF" },
   icon_amber: { backgroundColor: "#FFF4E5" },
   statDetail: { color: "#84909D", fontSize: 10, marginTop: 2, fontFamily: AppTypography.body },
-  shortcuts: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  shortcutPrimary: { minHeight: 43, paddingHorizontal: 15, borderRadius: 9, backgroundColor: "#1B56A3", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  shortcuts: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 1 },
+  shortcutPrimary: { minHeight: 43, paddingHorizontal: 15, borderRadius: 9, backgroundColor: AppPalette.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   shortcutPrimaryText: { color: "#FFFFFF", fontSize: 12, fontFamily: AppTypography.bodyStrong },
   shortcutSecondary: { minHeight: 43, paddingHorizontal: 14, borderRadius: 9, borderWidth: 1, borderColor: "#DCE4EB", backgroundColor: "#FFFFFF", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
-  shortcutSecondaryText: { color: "#1B56A3", fontSize: 12, fontFamily: AppTypography.bodyStrong },
+  shortcutSecondaryText: { color: AppPalette.primary, fontSize: 12, fontFamily: AppTypography.bodyStrong },
   pressed: { opacity: 0.8,
   },
   statValue: {

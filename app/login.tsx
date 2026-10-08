@@ -134,7 +134,7 @@ export default function LoginScreen() {
                     autoComplete="email"
                     keyboardType="email-address"
                     placeholder="seu@email.com"
-                    placeholderTextColor="#737e75"
+                    placeholderTextColor="#7C8798"
                     accessibilityLabel="E-mail"
                   />
                   <Text style={styles.label}>Senha</Text>
@@ -145,7 +145,7 @@ export default function LoginScreen() {
                     autoComplete="current-password"
                     secureTextEntry
                     placeholder="Digite sua senha"
-                    placeholderTextColor="#737e75"
+                    placeholderTextColor="#7C8798"
                     accessibilityLabel="Senha"
                     onSubmitEditing={login}
                     returnKeyType="go"
@@ -163,7 +163,7 @@ export default function LoginScreen() {
                     keyboardType="number-pad"
                     maxLength={6}
                     placeholder="000000"
-                    placeholderTextColor="#8b958d"
+                    placeholderTextColor="#98A2B3"
                     accessibilityLabel="Código de verificação"
                   />
                 </>
@@ -178,7 +178,7 @@ export default function LoginScreen() {
                     onChangeText={setPassword}
                     secureTextEntry
                     placeholder="Digite sua senha atual"
-                    placeholderTextColor="#737e75"
+                    placeholderTextColor="#7C8798"
                     accessibilityLabel="Senha atual"
                   />
                   <Text style={styles.label}>Nova senha</Text>
@@ -188,7 +188,7 @@ export default function LoginScreen() {
                     onChangeText={setCode}
                     secureTextEntry
                     placeholder="Mínimo de 8 caracteres"
-                    placeholderTextColor="#737e75"
+                    placeholderTextColor="#7C8798"
                     accessibilityLabel="Nova senha, mínimo de 8 caracteres"
                   />
                 </>
@@ -263,7 +263,7 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: '#f4f6f2',
+    backgroundColor: '#F3F5F8',
     paddingHorizontal: 20,
     paddingVertical: 24,
   },
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#e3e8df',
+    borderColor: '#E3E8EF',
   },
   shellWide: {
     flexDirection: 'row',
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   artPanel: {
-    backgroundColor: '#f4f6f2',
+    backgroundColor: '#F7F9FC',
     overflow: 'hidden',
     paddingHorizontal: 34,
   },
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 11,
-    backgroundColor: '#446b48',
+    backgroundColor: '#245A91',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   brandName: {
-    color: '#446b48',
+    color: '#245A91',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1.2,
@@ -343,14 +343,14 @@ const styles = StyleSheet.create({
     display: 'none',
   },
   artTitle: {
-    color: '#1f3024',
+    color: '#202B3C',
     fontSize: 29,
     lineHeight: 35,
     fontWeight: '700',
     letterSpacing: -0.6,
   },
   artSubtitle: {
-    color: '#6b756c',
+    color: '#66758A',
     fontSize: 14,
     lineHeight: 21,
     maxWidth: 315,
@@ -368,10 +368,10 @@ const styles = StyleSheet.create({
   footerRule: {
     height: 1,
     width: 25,
-    backgroundColor: '#597c55',
+    backgroundColor: '#6B8FB9',
   },
   artFooterText: {
-    color: '#597c55',
+    color: '#52759B',
     fontSize: 9,
     letterSpacing: 1.3,
     fontWeight: '700',
@@ -396,21 +396,21 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   title: {
-    color: '#1f3024',
+    color: '#202B3C',
     fontSize: 29,
     lineHeight: 36,
     fontWeight: '700',
     letterSpacing: -0.6,
   },
   subtitle: {
-    color: '#6b756c',
+    color: '#66758A',
     fontSize: 15,
     lineHeight: 22,
     marginTop: 8,
     marginBottom: 17,
   },
   label: {
-    color: '#38483b',
+    color: '#344054',
     fontSize: 13,
     fontWeight: '700',
     marginBottom: 7,
@@ -418,12 +418,12 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 50,
-    borderColor: '#dce2d9',
+    borderColor: '#DCE2EA',
     borderWidth: 1,
     borderRadius: 11,
     paddingHorizontal: 14,
     fontSize: 15,
-    color: '#24352b',
+    color: '#26364B',
     backgroundColor: '#fff',
   },
   codeInput: {
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
   },
   button: {
     minHeight: 50,
-    backgroundColor: '#446b48',
+    backgroundColor: '#245A91',
     borderRadius: 11,
     paddingHorizontal: 18,
     flexDirection: 'row',
@@ -443,7 +443,7 @@ const styles = StyleSheet.create({
     marginTop: 22,
   },
   buttonPressed: {
-    backgroundColor: '#36593b',
+    backgroundColor: '#1D4976',
     transform: [{ scale: 0.99 }],
   },
   buttonBusy: {
@@ -462,15 +462,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   messageSuccess: {
-    backgroundColor: '#edf4eb',
-    borderColor: '#d1dfce',
+    backgroundColor: '#EAF5EE',
+    borderColor: '#CFE5D6',
   },
   messageError: {
     backgroundColor: '#fff0ed',
     borderColor: '#f1d2cb',
   },
   message: {
-    color: '#405a45',
+    color: '#345B43',
     fontSize: 13,
     lineHeight: 19,
   },
@@ -480,18 +480,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   link: {
-    color: '#446b48',
+    color: '#245A91',
     fontSize: 13,
     fontWeight: '700',
   },
   formDivider: {
     height: 1,
-    backgroundColor: '#e3e8df',
+    backgroundColor: '#E3E8EF',
     marginTop: 23,
     marginBottom: 13,
   },
   formFootnote: {
-    color: '#6b756c',
+    color: '#66758A',
     fontSize: 12,
     textAlign: 'center',
   },

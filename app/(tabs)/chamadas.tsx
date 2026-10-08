@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ScreenShell } from '@/components/app/screen-shell';
@@ -572,6 +572,7 @@ export default function AttendanceScreen() {
                             }))
                           }
                           placeholder="Observação do aluno (opcional)"
+                          style={Platform.OS === 'web' ? { flex: 1, minWidth: 190 } : undefined}
                         />
                       </View>
                     ))
@@ -720,8 +721,11 @@ const styles = StyleSheet.create({
     borderColor: AppPalette.border,
     borderRadius: 10,
     backgroundColor: '#FFFFFF',
-    padding: 8,
+    padding: 10,
     gap: 8,
+    flexDirection: Platform.OS === 'web' ? 'row' : 'column',
+    alignItems: Platform.OS === 'web' ? 'center' : 'stretch',
+    flexWrap: 'wrap',
   },
   studentName: {
     flex: 1,
@@ -773,8 +777,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: AppPalette.border,
     borderRadius: 12,
-    padding: 10,
-    gap: 7,
+    padding: 13,
+    gap: 8,
     backgroundColor: '#FFFFFF',
   },
   historyHeader: {
