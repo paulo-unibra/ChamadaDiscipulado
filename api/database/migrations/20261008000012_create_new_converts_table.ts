@@ -4,6 +4,8 @@ export default class extends BaseSchema {
   protected tableName = 'new_converts'
 
   async up() {
+    if (await this.schema.hasTable(this.tableName)) return
+
     await this.schema.createTable(this.tableName, (table) => {
       table.string('id', 36).primary()
       table.string('congregation_id', 36).notNullable()
