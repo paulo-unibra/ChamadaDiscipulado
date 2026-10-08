@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Image } from 'expo-image'
 import {
   ActivityIndicator,
   Pressable,
@@ -111,18 +110,6 @@ export default function LoginScreen() {
               <Text style={styles.artSubtitle}>
                 Cada encontro é uma oportunidade de crescer e cuidar uns dos outros.
               </Text>
-            </View>
-
-            <View
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              style={[styles.mascotStage, isWide ? styles.mascotStageWide : styles.mascotStageNarrow]}
-            >
-              <Image
-                source={require('../assets/images/login-mascot.webp')}
-                style={styles.mascotImage}
-                contentFit="contain"
-              />
             </View>
 
             <View style={[styles.artFooter, !isWide && styles.artFooterCompact]}>
@@ -368,25 +355,6 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     maxWidth: 315,
     marginTop: 8,
-  },
-  mascotStage: {
-    alignSelf: 'center',
-    position: 'relative',
-    marginTop: 6,
-    zIndex: 1,
-  },
-  mascotStageWide: {
-    width: 310,
-    height: 320,
-  },
-  mascotStageNarrow: {
-    width: 245,
-    height: 250,
-    marginTop: 0,
-  },
-  mascotImage: {
-    width: '100%',
-    height: '100%',
   },
   artFooter: {
     flexDirection: 'row',

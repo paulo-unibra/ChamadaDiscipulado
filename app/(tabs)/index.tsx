@@ -1,6 +1,8 @@
 import { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useRouter, type Href } from "expo-router";
 
 import { ScreenShell } from "@/components/app/screen-shell";
 import { EmptyMessage, SectionCard, TinyBadge } from "@/components/app/ui";
@@ -35,9 +37,9 @@ function formatDateToBr(value: string) {
 }
 
 export default function DashboardScreen() {
+  const router = useRouter();
   const {
     classes,
-    discipleshipLessons,
     teachers,
     students,
     attendanceRecords,
@@ -58,42 +60,64 @@ export default function DashboardScreen() {
   }, [classes, teachers, students, attendanceRecords]);
 
   const latestRecords = attendanceRecords.slice(0, 4);
+  const todayLabel = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
 
   return (
     <ScreenShell
-      title="Chamada EBD"
-      subtitle={`Visão geral da escola bíblica: turmas, professores e histórico de presença. Modo: ${modeLabel}.`}
+      title="Visão geral"
+      subtitle={`Acompanhe a atividade da escola bíblica em um só lugar. Modo: ${modeLabel}.`}
     >
-      <Animated.View entering={FadeInDown.delay(50).duration(500)}>
-        <SectionCard
-          title="Painel rápido"
-          description="Leitura imediata para o início da aula."
-        >
-          <View style={styles.statsGrid}>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>{stats.classesCount}</Text>
-              <Text style={styles.statLabel}>Turmas</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>{stats.studentsCount}</Text>
-              <Text style={styles.statLabel}>Alunos</Text>
-            </View>
-            <View style={styles.statBox}>
-              <Text style={styles.statValue}>{stats.teachersCount}</Text>
-              <Text style={styles.statLabel}>Professores</Text>
-            </View>
-            <View style={styles.statBoxHighlight}>
-              <Text style={styles.statValueHighlight}>{stats.todayCount}</Text>
-              <Text style={styles.statLabelHighlight}>Chamadas hoje</Text>
-            </View>
+      <Animated.View entering={FadeInDown.delay(30).duration(500)} style={styles.welcomeCard}>
+        <View style={styles.welcomeCopy}>
+          <Text style={styles.welcomeEyebrow}>PAINEL DA ESCOLA BÍBLICA</Text>
+          <Text style={styles.welcomeTitle}>Tudo em ordem por aqui?</Text>
+          <Text style={styles.welcomeSubtitle}>Veja os números da sua comunidade e acompanhe as chamadas recentes.</Text>
+          <View style={styles.dateRow}>
+            <MaterialIcons name="calendar-today" size={15} color="#DCE8F6" />
+            <Text style={styles.dateText}>{todayLabel}</Text>
           </View>
-        </SectionCard>
+        </View>
+        <View style={styles.welcomeIcon}><MaterialIcons name="menu-book" size={34} color="#FFFFFF" /></View>
       </Animated.View>
 
-      <Animated.View entering={FadeInDown.delay(120).duration(500)}>
+      <Animated.View entering={FadeInDown.delay(80).duration(500)}>
+        <View style={styles.sectionHeading}>
+          <View><Text style={styles.sectionTitle}>Resumo da escola</Text><Text style={styles.sectionDescription}>Indicadores atualizados com seus cadastros e chamadas.</Text></View>
+        </View>
+        <View style={styles.statsGrid}>
+          {[
+            { label: "Turmas", value: stats.classesCount, icon: "class" as const, tone: "blue" as const },
+            { label: "Alunos", value: stats.studentsCount, icon: "groups" as const, tone: "cyan" as const },
+            { label: "Professores", value: stats.teachersCount, icon: "school" as const, tone: "green" as const },
+            { label: "Chamadas hoje", value: stats.todayCount, icon: "fact-check" as const, tone: "amber" as const },
+          ].map((item) => (
+            <View key={item.label} style={styles.statCard}>
+              <View style={styles.statTop}><Text style={styles.statLabel}>{item.label}</Text><View style={[styles.statIcon, item.tone === "green" ? styles.icon_green : item.tone === "amber" ? styles.icon_amber : item.tone === "cyan" ? styles.icon_cyan : styles.icon_blue]}><MaterialIcons name={item.icon} size={19} color={item.tone === "green" ? "#238457" : item.tone === "amber" ? "#B7791F" : item.tone === "cyan" ? "#0787A5" : "#245DA1"} /></View></View>
+              <Text style={styles.statValue}>{item.value}</Text>
+              <Text style={styles.statDetail}>{item.label === "Chamadas hoje" ? "registros neste dia" : "no sistema"}</Text>
+            </View>
+          ))}
+        </View>
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(120).duration(500)} style={styles.shortcuts}>
+        <Pressable onPress={() => router.push("/chamadas" as Href)} style={({ pressed }) => [styles.shortcutPrimary, pressed && styles.pressed]}>
+          <MaterialIcons name="add" size={19} color="#FFFFFF" /><Text style={styles.shortcutPrimaryText}>Registrar chamada</Text><MaterialIcons name="arrow-forward" size={17} color="#FFFFFF" />
+        </Pressable>
+        <Pressable onPress={() => router.push("/relatorios" as Href)} style={({ pressed }) => [styles.shortcutSecondary, pressed && styles.pressed]}>
+          <MaterialIcons name="assessment" size={18} color="#1B56A3" /><Text style={styles.shortcutSecondaryText}>Ver relatórios</Text>
+        </Pressable>
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(170).duration(500)}>
         <SectionCard
           title="Últimas chamadas"
-          description="Toque na aba Chamada para editar ou registrar uma nova."
+          description="Acompanhe os registros mais recentes da escola."
         >
           {latestRecords.length === 0 ? (
             <EmptyMessage
@@ -175,30 +199,58 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
+  welcomeCard: {
+    minHeight: 158,
+    padding: 22,
+    borderRadius: 16,
+    backgroundColor: "#2B3C5B",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    overflow: "hidden",
+  },
+  welcomeCopy: { flex: 1, gap: 6 },
+  welcomeEyebrow: { color: "#AFC4E0", fontSize: 10, letterSpacing: 1.4, fontFamily: AppTypography.bodyStrong },
+  welcomeTitle: { color: "#FFFFFF", fontSize: 22, fontFamily: AppTypography.title },
+  welcomeSubtitle: { maxWidth: 470, color: "#D4DCE8", fontSize: 13, lineHeight: 19, fontFamily: AppTypography.body },
+  dateRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 5 },
+  dateText: { color: "#DCE8F6", fontSize: 11, textTransform: "capitalize", fontFamily: AppTypography.body },
+  welcomeIcon: { width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.12)" },
+  sectionHeading: { marginTop: 7, marginBottom: 12, flexDirection: "row", justifyContent: "space-between" },
+  sectionTitle: { color: "#212B36", fontSize: 16, fontFamily: AppTypography.bodyStrong },
+  sectionDescription: { color: "#637381", fontSize: 11, marginTop: 3, fontFamily: AppTypography.body },
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 12,
   },
-  statBox: {
+  statCard: {
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
-    borderColor: AppPalette.border,
+    borderColor: "#E8EBED",
     borderRadius: 14,
-    width: "48%",
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    gap: 2,
+    flexGrow: 1,
+    flexBasis: "46%",
+    padding: 15,
+    shadowColor: "#233E52",
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
-  statBoxHighlight: {
-    backgroundColor: AppPalette.primary,
-    borderWidth: 1,
-    borderColor: AppPalette.primary,
-    borderRadius: 14,
-    width: "48%",
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    gap: 2,
+  statTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 9 },
+  statIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  icon_blue: { backgroundColor: "#EAF1FA" },
+  icon_cyan: { backgroundColor: "#E5F6F9" },
+  icon_green: { backgroundColor: "#E8F6EF" },
+  icon_amber: { backgroundColor: "#FFF4E5" },
+  statDetail: { color: "#84909D", fontSize: 10, marginTop: 2, fontFamily: AppTypography.body },
+  shortcuts: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  shortcutPrimary: { minHeight: 43, paddingHorizontal: 15, borderRadius: 9, backgroundColor: "#1B56A3", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  shortcutPrimaryText: { color: "#FFFFFF", fontSize: 12, fontFamily: AppTypography.bodyStrong },
+  shortcutSecondary: { minHeight: 43, paddingHorizontal: 14, borderRadius: 9, borderWidth: 1, borderColor: "#DCE4EB", backgroundColor: "#FFFFFF", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  shortcutSecondaryText: { color: "#1B56A3", fontSize: 12, fontFamily: AppTypography.bodyStrong },
+  pressed: { opacity: 0.8,
   },
   statValue: {
     fontSize: 28,
