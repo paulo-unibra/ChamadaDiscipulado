@@ -19,19 +19,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build web export
+      - name: Build React web app
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - name: Export Expo web
-        run: npx expo export --platform web
+          cache-dependency-path: web/package-lock.json
+      - name: Install React web dependencies
+        run: npm ci --prefix web
+      - name: Build React web
+        run: npm --prefix web run build
         env:
-          EXPO_PUBLIC_API_BASE_URL: https://discipulado.bibliafoco.com.br/api
+          VITE_API_BASE_URL: https://discipulado.bibliafoco.com.br/api
       - name: Configure Apache client-side routing
         run: |
-          printf 'Options -MultiViews\nRewriteEngine On\nRewriteRule ^relatorios/frequencia\\.html$ /frequencia [R=302,L]\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule ^ index.html [QSA,L]\n' > dist/.htaccess
+          printf 'Options -MultiViews\nRewriteEngine On\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule ^ index.html [QSA,L]\n' > web/dist/.htaccess
 
       - name: Build API Docker image
         run: docker build -t chamada-discipulado-api:latest ./api
@@ -57,7 +59,7 @@ jobs:
         run: |
           ssh "$DEPLOY_USER@$DEPLOY_HOST" 'mkdir -p /root/ChamadaDiscipulado/deploy-artifacts'
           scp chamada-api-image.tar.gz docker-compose.yml "$DEPLOY_USER@$DEPLOY_HOST:/root/ChamadaDiscipulado/deploy-artifacts/"
-          rsync -az dist/ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/discipulado/"
+          rsync -az --delete web/dist/ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/discipulado/"
           ssh "$DEPLOY_USER@$DEPLOY_HOST" 'rm -f /var/www/discipulado/relatorios/frequencia.html'
 
       - name: Activate deployment
