@@ -1,6 +1,6 @@
 # Campanha Evangelizadora — Web
 
-Versão independente em React para navegador. O app Expo continua disponível na raiz do projeto.
+Versão independente em React para navegador. O app Expo continua disponível na raiz do projeto. A congregação inicial é **Zumbi do Pacheco 1** (Área 10, Setor 10); novas congregações podem ser cadastradas no menu **Cadastros → Congregações**, e cada uma mantém turmas, participantes, professores, novos convertidos e chamadas separados. O cadastro de novos convertidos fica em **Cadastros → Novos convertidos** e não requer turma.
 
 ## Executar
 

@@ -30,6 +30,9 @@ router.post('/auth/logout', [AuthController, 'logout']).use(middleware.requireAu
 router
   .group(() => {
     router.get('/school/state', [SchoolController, 'state'])
+    router.post('/school/congregations', [SchoolController, 'createCongregation'])
+    router.post('/school/new-converts', [SchoolController, 'createNewConvert'])
+    router.delete('/school/new-converts/:id', [SchoolController, 'deleteNewConvert'])
     router.get('/school/audit-logs', [SchoolController, 'auditLogs'])
 
     router.post('/school/classes', [SchoolController, 'createClass'])

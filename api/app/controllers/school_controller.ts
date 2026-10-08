@@ -3,6 +3,68 @@ import db from '@adonisjs/lucid/services/db'
 
 const VALID_STATUSES = ['present', 'absent', 'justified', 'late'] as const
 type AttendanceStatus = (typeof VALID_STATUSES)[number]
+const CONVERSION_EVENTS = [
+  'ADESIVAÇO',
+  'ADOLESCENTES: TESTEMUNHAS',
+  'Aniversário de Campanha Evangelizadora',
+  'Aniversário de Conjunto Musical',
+  'Aniversário de Coral',
+  'Aniversário de Grupo Jovem',
+  'Aniversário de União de Adolescentes',
+  'BEREANOS',
+  'Caminhada Evangelistica de oração',
+  'Cantata Evangelística da Páscoa',
+  'Círculo de Oração Adulto',
+  'Círculo de Oração Infantil',
+  'Congresso de Adolescentes',
+  'Congresso de Jovens',
+  'Congresso de Mulheres',
+  'Consagração',
+  'Cruzada Jovem',
+  'Cruzadas Evangelisticas',
+  'Culto de Doutrina',
+  'Culto de Oração',
+  'Culto de Reencontro',
+  'Culto Evangelistico (Domingo a noite)',
+  'Culto Jovem',
+  'Culto na feira',
+  'Culto no lar',
+  'Culto Relâmpago',
+  'Culto rodízio',
+  'Em família',
+  'Encontro de comissões',
+  'Encontro de crianças',
+  'Escola Bíblica Dominical (EBD)',
+  'Escola/faculdade (intervalo bíblico)',
+  'Estudo do PROJEFÉRIAS',
+  'Estudo para mocidade',
+  'EVANGELISMO COM ORGAOS DE LOUVOR',
+  'Evangelismo Estudantil (ENEM)',
+  'Evangelismo Noturno',
+  'Evangelismo Pessoal',
+  'EVANGELISMO RESGATE',
+  'EVANGELISMO SOLIDÁRIO',
+  'Evangelismos e visita nos hospitais',
+  'Evangelismos nos presídios',
+  'GRANDE MOBILIZACAO PERNAMBUCO PARA CRISTO',
+  'Mobilização Evangelística',
+  'Mobilização: Mensageiro de Boas Novas',
+  'Mobilização: Vou Testemunhar',
+  'Oração da mocidade',
+  'Pontos de pregação',
+  'Pré-congressos',
+  'PROATI',
+  'Proclamai',
+  'PROCLAMAI KIDS',
+  'Santa Ceia',
+  'Semana de Visitação',
+  'Seminário para família',
+  'Simpósio de doutrinas bíblicas',
+  'Vigília',
+  'Visitas (da comissão do círculo de oração)',
+  'Outras atividades evangelisticas',
+  'Outras ações',
+] as const
 
 type StudentPayload = {
   name: string
@@ -27,6 +89,21 @@ type AttendancePayload = {
     status: AttendanceStatus
     note?: string
   }>
+}
+
+type NewConvertPayload = {
+  eventName: string
+  name: string
+  conversionDate: string
+  cep?: string
+  street?: string
+  number?: string
+  complement?: string
+  neighborhood?: string
+  city?: string
+  state?: string
+  birthDate?: string
+  contactPhone?: string
 }
 
 const DISCIPLESHIP_LESSONS = [
@@ -55,6 +132,7 @@ const DISCIPLESHIP_LESSONS = [
 ] as const
 
 const LEGACY_AUTO_CLASS_DESCRIPTION = 'Aula fixa do discipulado'
+const DEFAULT_CONGREGATION_ID = 'cong-zumbi-pacheco-1'
 
 type AuditEntry = {
   action: string
@@ -63,11 +141,7 @@ type AuditEntry = {
   details?: Record<string, unknown>
 }
 
-async function writeAuditLog(
-  connection: any,
-  request: HttpContext['request'],
-  entry: AuditEntry
-) {
+async function writeAuditLog(connection: any, request: HttpContext['request'], entry: AuditEntry) {
   try {
     await connection.table('audit_logs').insert({
       id: id('audit'),
@@ -81,6 +155,17 @@ async function writeAuditLog(
   } catch (error) {
     console.warn('[audit] failed to write log:', error)
   }
+}
+
+function getCongregationId(request: HttpContext['request']) {
+  return (
+    safeString(request.input('congregationId') ?? request.header('x-congregation-id')) ||
+    DEFAULT_CONGREGATION_ID
+  )
+}
+
+async function hasCongregation(congregationId: string) {
+  return Boolean(await db.from('congregations').where('id', congregationId).first())
 }
 
 function normalizeClassName(value: string) {
@@ -161,8 +246,15 @@ function normalizeDateForClient(value: unknown) {
   return `${year}-${month}-${day}`
 }
 
-async function getState() {
+function isValidIsoDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
+
+async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
   const [
+    congregationsRows,
     classesRows,
     studentsRows,
     teachersRows,
@@ -170,19 +262,49 @@ async function getState() {
     attendanceRows,
     attendanceTeachersRows,
     attendanceEntriesRows,
+    newConvertsRows,
   ] = await Promise.all([
-    db.from('classes').select('*').whereNull('deleted_at').orderBy('created_at', 'desc'),
-    db.from('students').select('*').whereNull('deleted_at').orderBy('created_at', 'desc'),
-    db.from('teachers').select('*').whereNull('deleted_at').orderBy('created_at', 'desc'),
-    db.from('class_students').select('*').whereNull('deleted_at'),
+    db.from('congregations').select('*').orderBy('name', 'asc'),
+    db
+      .from('classes')
+      .select('*')
+      .where('congregation_id', congregationId)
+      .whereNull('deleted_at')
+      .orderBy('created_at', 'desc'),
+    db
+      .from('students')
+      .select('*')
+      .where('congregation_id', congregationId)
+      .whereNull('deleted_at')
+      .orderBy('created_at', 'desc'),
+    db
+      .from('teachers')
+      .select('*')
+      .where('congregation_id', congregationId)
+      .whereNull('deleted_at')
+      .orderBy('created_at', 'desc'),
+    db
+      .from('class_students')
+      .select('*')
+      .whereIn('class_id', db.from('classes').select('id').where('congregation_id', congregationId))
+      .whereNull('deleted_at'),
     db
       .from('attendance_records')
-      .select('*')
-      .whereNull('deleted_at')
-      .orderBy('date', 'desc')
-      .orderBy('created_at', 'desc'),
+      .select('attendance_records.*')
+      .innerJoin('classes', 'classes.id', 'attendance_records.class_id')
+      .where('classes.congregation_id', congregationId)
+      .whereNull('attendance_records.deleted_at')
+      .orderBy('attendance_records.date', 'desc')
+      .orderBy('attendance_records.created_at', 'desc'),
     db.from('attendance_teachers').select('*').whereNull('deleted_at'),
     db.from('attendance_entries').select('*').whereNull('deleted_at'),
+    db
+      .from('new_converts')
+      .select('*')
+      .where('congregation_id', congregationId)
+      .whereNull('deleted_at')
+      .orderBy('conversion_date', 'desc')
+      .orderBy('created_at', 'desc'),
   ])
 
   const classStudentsByClassId = classStudentsRows.reduce<Record<string, string[]>>((acc, row) => {
@@ -238,10 +360,7 @@ async function getState() {
     .map((row) => String(row.id))
 
   if (legacyAutoClassIds.length > 0) {
-    await db
-      .from('classes')
-      .whereIn('id', legacyAutoClassIds)
-      .update({ deleted_at: new Date() })
+    await db.from('classes').whereIn('id', legacyAutoClassIds).update({ deleted_at: new Date() })
   }
 
   const legacyAutoClassIdSet = new Set(legacyAutoClassIds)
@@ -289,17 +408,44 @@ async function getState() {
     updatedAt: row.updated_at,
   }))
 
+  const newConverts = newConvertsRows.map((row) => ({
+    id: String(row.id),
+    eventName: row.event_name,
+    name: row.name,
+    conversionDate: normalizeDateForClient(row.conversion_date),
+    cep: row.cep ?? '',
+    street: row.street ?? '',
+    number: row.number ?? '',
+    complement: row.complement ?? '',
+    neighborhood: row.neighborhood ?? '',
+    city: row.city ?? '',
+    state: row.state ?? '',
+    birthDate: row.birth_date ? normalizeDateForClient(row.birth_date) : '',
+    contactPhone: row.contact_phone ?? '',
+    createdAt: row.created_at,
+  }))
+
   return {
+    congregations: congregationsRows.map((row) => ({
+      id: String(row.id),
+      name: row.name,
+      area: row.area ?? '',
+      sector: row.sector ?? '',
+      createdAt: row.created_at,
+    })),
+    activeCongregationId: congregationId,
     classes,
     discipleshipLessons: [...DISCIPLESHIP_LESSONS],
     students,
     teachers,
     attendanceRecords,
+    newConverts,
   }
 }
 
 export default class SchoolController {
-  async studentTimeline({ response }: HttpContext) {
+  async studentTimeline({ request, response }: HttpContext) {
+    const congregationId = getCongregationId(request)
     const rows = await db
       .from('students')
       .select(
@@ -308,17 +454,22 @@ export default class SchoolController {
         db.raw('MIN(attendance_records.date) as start_date'),
         db.raw('MAX(attendance_records.date) as end_date'),
         db.raw(
-          'MIN(attendance_records.lesson_name) filter (where attendance_records.date = (select min(ar2.date) from attendance_records ar2 inner join attendance_entries ae2 on ae2.attendance_record_id = ar2.id where ae2.student_id = students.id and ae2.deleted_at is null and ar2.deleted_at is null and ae2.status in (\'present\', \'late\'))) as first_lesson'
+          "MIN(attendance_records.lesson_name) filter (where attendance_records.date = (select min(ar2.date) from attendance_records ar2 inner join attendance_entries ae2 on ae2.attendance_record_id = ar2.id where ae2.student_id = students.id and ae2.deleted_at is null and ar2.deleted_at is null and ae2.status in ('present', 'late'))) as first_lesson"
         ),
         db.raw(
-          'MAX(attendance_records.lesson_name) filter (where attendance_records.date = (select max(ar2.date) from attendance_records ar2 inner join attendance_entries ae2 on ae2.attendance_record_id = ar2.id where ae2.student_id = students.id and ae2.deleted_at is null and ar2.deleted_at is null and ae2.status in (\'present\', \'late\'))) as last_lesson'
+          "MAX(attendance_records.lesson_name) filter (where attendance_records.date = (select max(ar2.date) from attendance_records ar2 inner join attendance_entries ae2 on ae2.attendance_record_id = ar2.id where ae2.student_id = students.id and ae2.deleted_at is null and ar2.deleted_at is null and ae2.status in ('present', 'late'))) as last_lesson"
         )
       )
       .innerJoin('attendance_entries', 'attendance_entries.student_id', 'students.id')
-      .innerJoin('attendance_records', 'attendance_records.id', 'attendance_entries.attendance_record_id')
+      .innerJoin(
+        'attendance_records',
+        'attendance_records.id',
+        'attendance_entries.attendance_record_id'
+      )
       .whereNull('students.deleted_at')
       .whereNull('attendance_entries.deleted_at')
       .whereNull('attendance_records.deleted_at')
+      .where('students.congregation_id', congregationId)
       .whereIn('attendance_entries.status', ['present', 'late'])
       .groupBy('students.id', 'students.name')
       .orderBy('start_date', 'asc')
@@ -335,8 +486,114 @@ export default class SchoolController {
     return response.ok(data)
   }
 
-  async state({ response }: HttpContext) {
-    return response.ok(await getState())
+  async state({ request, response }: HttpContext) {
+    const congregationId = getCongregationId(request)
+    if (!(await hasCongregation(congregationId))) {
+      return response.badRequest({ message: 'A congregação selecionada não existe.' })
+    }
+    return response.ok(await getState(congregationId))
+  }
+
+  async createCongregation({ request, response }: HttpContext) {
+    const name = safeString(request.input('name'))
+    const area = safeString(request.input('area'))
+    const sector = safeString(request.input('sector'))
+    if (!name) {
+      return response.badRequest({ message: 'O nome da congregação é obrigatório.' })
+    }
+
+    const congregationId = id('congregation')
+    await db.table('congregations').insert({ id: congregationId, name, area, sector })
+    await writeAuditLog(db, request, {
+      action: 'congregation.create',
+      entityType: 'congregation',
+      entityId: congregationId,
+      details: { name, area, sector },
+    })
+    return response.ok(await getState(congregationId))
+  }
+
+  async createNewConvert({ request, response }: HttpContext) {
+    const payload = request.body() as NewConvertPayload
+    const congregationId = getCongregationId(request)
+    const eventName = safeString(payload.eventName)
+    const name = safeString(payload.name)
+    const conversionDate = safeString(payload.conversionDate)
+    const birthDate = safeString(payload.birthDate)
+    const cep = safeString(payload.cep).replace(/\D/g, '')
+
+    if (!name || !eventName || !conversionDate) {
+      return response.badRequest({
+        message: 'Atividade, nome e data da conversão são obrigatórios.',
+      })
+    }
+    if (!CONVERSION_EVENTS.includes(eventName as (typeof CONVERSION_EVENTS)[number])) {
+      return response.badRequest({ message: 'Selecione uma atividade válida.' })
+    }
+    if (!isValidIsoDate(conversionDate) || (birthDate && !isValidIsoDate(birthDate))) {
+      return response.badRequest({ message: 'Informe datas válidas para conversão e nascimento.' })
+    }
+    if (birthDate && birthDate > conversionDate) {
+      return response.badRequest({
+        message: 'A data de nascimento não pode ser posterior à conversão.',
+      })
+    }
+    if (cep && cep.length !== 8) {
+      return response.badRequest({ message: 'O CEP deve conter 8 dígitos.' })
+    }
+    if (!(await hasCongregation(congregationId))) {
+      return response.badRequest({ message: 'A congregação selecionada não existe.' })
+    }
+
+    const newConvertId = id('new-convert')
+    await db.table('new_converts').insert({
+      id: newConvertId,
+      congregation_id: congregationId,
+      event_name: eventName,
+      name,
+      conversion_date: conversionDate,
+      cep: cep || null,
+      street: safeString(payload.street) || null,
+      number: safeString(payload.number) || null,
+      complement: safeString(payload.complement) || null,
+      neighborhood: safeString(payload.neighborhood) || null,
+      city: safeString(payload.city) || null,
+      state: safeString(payload.state).toUpperCase().slice(0, 2) || null,
+      birth_date: birthDate || null,
+      contact_phone: safeString(payload.contactPhone) || null,
+    })
+    await writeAuditLog(db, request, {
+      action: 'new_convert.create',
+      entityType: 'new_convert',
+      entityId: newConvertId,
+      details: { name, eventName, conversionDate },
+    })
+    return response.ok(await getState(congregationId))
+  }
+
+  async deleteNewConvert({ request, params, response }: HttpContext) {
+    const congregationId = getCongregationId(request)
+    const existing = await db
+      .from('new_converts')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .whereNull('deleted_at')
+      .first()
+    if (!existing)
+      return response.notFound({ message: 'Cadastro não encontrado nesta congregação.' })
+
+    await db
+      .from('new_converts')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .update({ deleted_at: new Date() })
+    await writeAuditLog(db, request, {
+      action: 'new_convert.delete',
+      entityType: 'new_convert',
+      entityId: params.id,
+      details: { name: existing.name },
+    })
+    return response.ok(await getState(congregationId))
   }
 
   async auditLogs({ response }: HttpContext) {
@@ -359,9 +616,13 @@ export default class SchoolController {
   async createClass({ request, response }: HttpContext) {
     const name = safeString(request.input('name'))
     const description = safeString(request.input('description'))
+    const congregationId = getCongregationId(request)
 
     if (!name) {
       return response.badRequest({ message: 'Nome da turma eh obrigatorio.' })
+    }
+    if (!(await hasCongregation(congregationId))) {
+      return response.badRequest({ message: 'A congregação selecionada não existe.' })
     }
 
     const classId = id('class')
@@ -369,6 +630,7 @@ export default class SchoolController {
       id: classId,
       name,
       description: description || null,
+      congregation_id: congregationId,
     })
 
     await writeAuditLog(db, request, {
@@ -378,28 +640,35 @@ export default class SchoolController {
       details: { name, description },
     })
 
-    return response.ok(await getState())
+    return response.ok(await getState(getCongregationId(request)))
   }
 
   async deleteClass({ request, params, response }: HttpContext) {
-    const existing = await db.from('classes').where('id', params.id).first()
+    const congregationId = getCongregationId(request)
+    const existing = await db
+      .from('classes')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .first()
+    if (!existing) return response.notFound({ message: 'Turma não encontrada nesta congregação.' })
     const deletedAt = new Date()
 
-    await db.from('classes').where('id', params.id).update({ deleted_at: deletedAt })
+    await db
+      .from('classes')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .update({ deleted_at: deletedAt })
     await db.from('class_students').where('class_id', params.id).update({ deleted_at: deletedAt })
 
     const recordRows = await db
       .from('attendance_records')
       .select('id')
       .where('class_id', params.id)
-      .whereNull('deleted_at')
+      .whereNull('attendance_records.deleted_at')
     const recordIds = recordRows.map((row: any) => String(row.id))
 
     if (recordIds.length > 0) {
-      await db
-        .from('attendance_records')
-        .whereIn('id', recordIds)
-        .update({ deleted_at: deletedAt })
+      await db.from('attendance_records').whereIn('id', recordIds).update({ deleted_at: deletedAt })
       await db
         .from('attendance_teachers')
         .whereIn('attendance_record_id', recordIds)
@@ -419,15 +688,33 @@ export default class SchoolController {
       details: { name: existing?.name ?? '', recordCount: recordIds.length },
     })
 
-    return response.ok(await getState())
+    return response.ok(await getState(getCongregationId(request)))
   }
 
   async createStudent({ request, response }: HttpContext) {
     const payload = request.body() as StudentPayload
     const name = safeString(payload.name)
+    const congregationId = getCongregationId(request)
 
     if (!name) {
       return response.badRequest({ message: 'Nome do aluno eh obrigatorio.' })
+    }
+    if (!(await hasCongregation(congregationId))) {
+      return response.badRequest({ message: 'A congregação selecionada não existe.' })
+    }
+
+    const classIds = normalizeIdArray(payload.classIds)
+    if (classIds.length > 0) {
+      const classes = await db
+        .from('classes')
+        .whereIn('id', classIds)
+        .where('congregation_id', congregationId)
+        .whereNull('deleted_at')
+      if (classes.length !== classIds.length) {
+        return response.badRequest({
+          message: 'Todas as turmas devem pertencer à congregação selecionada.',
+        })
+      }
     }
 
     const studentId = id('student')
@@ -441,9 +728,9 @@ export default class SchoolController {
       guardian_phone: safeString(payload.guardianPhone) || null,
       address: safeString(payload.address) || null,
       notes: safeString(payload.notes) || null,
+      congregation_id: congregationId,
     })
 
-    const classIds = normalizeIdArray(payload.classIds)
     if (classIds.length > 0) {
       const rows = classIds.map((classId) => ({
         id: id('clsstd'),
@@ -460,14 +747,24 @@ export default class SchoolController {
       details: { name, classIds },
     })
 
-    return response.ok(await getState())
+    return response.ok(await getState(getCongregationId(request)))
   }
 
   async deleteStudent({ request, params, response }: HttpContext) {
-    const existing = await db.from('students').where('id', params.id).first()
+    const congregationId = getCongregationId(request)
+    const existing = await db
+      .from('students')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .first()
+    if (!existing) return response.notFound({ message: 'Aluno não encontrado nesta congregação.' })
     const deletedAt = new Date()
 
-    await db.from('students').where('id', params.id).update({ deleted_at: deletedAt })
+    await db
+      .from('students')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .update({ deleted_at: deletedAt })
     await db.from('class_students').where('student_id', params.id).update({ deleted_at: deletedAt })
 
     await writeAuditLog(db, request, {
@@ -477,16 +774,25 @@ export default class SchoolController {
       details: { name: existing?.name ?? '' },
     })
 
-    return response.ok(await getState())
+    return response.ok(await getState(getCongregationId(request)))
   }
 
   async assignStudentToClass({ request, response }: HttpContext) {
     const classId = safeString(request.input('classId'))
     const studentId = safeString(request.input('studentId'))
+    const congregationId = getCongregationId(request)
 
     if (!classId || !studentId) {
       return response.badRequest({ message: 'classId e studentId sao obrigatorios.' })
     }
+    const [classGroup, student] = await Promise.all([
+      db.from('classes').where('id', classId).where('congregation_id', congregationId).first(),
+      db.from('students').where('id', studentId).where('congregation_id', congregationId).first(),
+    ])
+    if (!classGroup || !student)
+      return response.badRequest({
+        message: 'Turma e aluno devem pertencer à congregação selecionada.',
+      })
 
     const alreadyLinked = await db
       .from('class_students')
@@ -508,10 +814,7 @@ export default class SchoolController {
         details: { studentId },
       })
     } else if (alreadyLinked.deleted_at) {
-      await db
-        .from('class_students')
-        .where('id', alreadyLinked.id)
-        .update({ deleted_at: null })
+      await db.from('class_students').where('id', alreadyLinked.id).update({ deleted_at: null })
 
       await writeAuditLog(db, request, {
         action: 'class_students.assign',
@@ -521,16 +824,24 @@ export default class SchoolController {
       })
     }
 
-    return response.ok(await getState())
+    return response.ok(await getState(getCongregationId(request)))
   }
 
   async removeStudentFromClass({ request, response }: HttpContext) {
     const classId = safeString(request.input('classId'))
     const studentId = safeString(request.input('studentId'))
+    const congregationId = getCongregationId(request)
 
     if (!classId || !studentId) {
       return response.badRequest({ message: 'classId e studentId sao obrigatorios.' })
     }
+    const classGroup = await db
+      .from('classes')
+      .where('id', classId)
+      .where('congregation_id', congregationId)
+      .first()
+    if (!classGroup)
+      return response.notFound({ message: 'Turma não encontrada nesta congregação.' })
 
     const link = await db
       .from('class_students')
@@ -553,15 +864,19 @@ export default class SchoolController {
       })
     }
 
-    return response.ok(await getState())
+    return response.ok(await getState(getCongregationId(request)))
   }
 
   async createTeacher({ request, response }: HttpContext) {
     const name = safeString(request.input('name'))
     const phone = safeString(request.input('phone'))
+    const congregationId = getCongregationId(request)
 
     if (!name) {
       return response.badRequest({ message: 'Nome do professor eh obrigatorio.' })
+    }
+    if (!(await hasCongregation(congregationId))) {
+      return response.badRequest({ message: 'A congregação selecionada não existe.' })
     }
 
     const teacherId = id('teacher')
@@ -569,6 +884,7 @@ export default class SchoolController {
       id: teacherId,
       name,
       phone: phone || null,
+      congregation_id: congregationId,
     })
 
     await writeAuditLog(db, request, {
@@ -578,12 +894,23 @@ export default class SchoolController {
       details: { name },
     })
 
-    return response.ok(await getState())
+    return response.ok(await getState(getCongregationId(request)))
   }
 
   async deleteTeacher({ request, params, response }: HttpContext) {
-    const existing = await db.from('teachers').where('id', params.id).first()
-    await db.from('teachers').where('id', params.id).update({ deleted_at: new Date() })
+    const congregationId = getCongregationId(request)
+    const existing = await db
+      .from('teachers')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .first()
+    if (!existing)
+      return response.notFound({ message: 'Professor não encontrado nesta congregação.' })
+    await db
+      .from('teachers')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .update({ deleted_at: new Date() })
 
     await writeAuditLog(db, request, {
       action: 'teacher.delete',
@@ -592,7 +919,7 @@ export default class SchoolController {
       details: { name: existing?.name ?? '' },
     })
 
-    return response.ok(await getState())
+    return response.ok(await getState(getCongregationId(request)))
   }
 
   async saveAttendance({ request, response }: HttpContext) {
@@ -604,10 +931,29 @@ export default class SchoolController {
     const date = safeString(payload.date)
     const notes = safeString(payload.notes)
     const entries = Array.isArray(payload.entries) ? payload.entries : []
+    const congregationId = getCongregationId(request)
 
     if (!classId || !lessonName || !date || teacherIds.length === 0) {
       return response.badRequest({
         message: 'classId, lessonName, date e teacherIds sao obrigatorios.',
+      })
+    }
+    const [classGroup, validTeachers] = await Promise.all([
+      db
+        .from('classes')
+        .where('id', classId)
+        .where('congregation_id', congregationId)
+        .whereNull('deleted_at')
+        .first(),
+      db
+        .from('teachers')
+        .whereIn('id', teacherIds)
+        .where('congregation_id', congregationId)
+        .whereNull('deleted_at'),
+    ])
+    if (!classGroup || validTeachers.length !== teacherIds.length) {
+      return response.badRequest({
+        message: 'Turma e professores devem pertencer à congregação selecionada.',
       })
     }
 
@@ -620,6 +966,13 @@ export default class SchoolController {
     const trx = await db.transaction()
     try {
       if (payload.id) {
+        const existingRecord = await trx
+          .from('attendance_records')
+          .innerJoin('classes', 'classes.id', 'attendance_records.class_id')
+          .where('attendance_records.id', attendanceId)
+          .where('classes.congregation_id', congregationId)
+          .first()
+        if (!existingRecord) throw new Error('Chamada não encontrada nesta congregação.')
         const deletedAt = new Date()
 
         await trx
@@ -683,6 +1036,16 @@ export default class SchoolController {
         })
         .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
 
+      const classStudentRows = await trx
+        .from('class_students')
+        .select('student_id')
+        .where('class_id', classId)
+        .whereNull('deleted_at')
+      const validStudentIds = new Set(classStudentRows.map((row: any) => String(row.student_id)))
+      if (normalizedEntries.some((entry) => !validStudentIds.has(entry.student_id))) {
+        throw new Error('Os participantes da chamada devem estar vinculados à turma selecionada.')
+      }
+
       if (normalizedEntries.length > 0) {
         await trx.table('attendance_entries').insert(normalizedEntries)
       }
@@ -701,7 +1064,7 @@ export default class SchoolController {
       })
 
       await trx.commit()
-      return response.ok(await getState())
+      return response.ok(await getState(getCongregationId(request)))
     } catch (error) {
       await trx.rollback()
       throw error
@@ -709,7 +1072,16 @@ export default class SchoolController {
   }
 
   async deleteAttendance({ request, params, response }: HttpContext) {
-    const existing = await db.from('attendance_records').where('id', params.id).first()
+    const congregationId = getCongregationId(request)
+    const existing = await db
+      .from('attendance_records')
+      .select('attendance_records.*')
+      .innerJoin('classes', 'classes.id', 'attendance_records.class_id')
+      .where('attendance_records.id', params.id)
+      .where('classes.congregation_id', congregationId)
+      .first()
+    if (!existing)
+      return response.notFound({ message: 'Chamada não encontrada nesta congregação.' })
     const deletedAt = new Date()
 
     await db.from('attendance_records').where('id', params.id).update({ deleted_at: deletedAt })
@@ -735,6 +1107,6 @@ export default class SchoolController {
       },
     })
 
-    return response.ok(await getState())
+    return response.ok(await getState(getCongregationId(request)))
   }
 }
