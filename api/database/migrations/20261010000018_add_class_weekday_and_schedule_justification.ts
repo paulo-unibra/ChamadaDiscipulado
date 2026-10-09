@@ -1,29 +1,31 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
+import db from '@adonisjs/lucid/services/db'
 
 export default class extends BaseSchema {
-  private isDuplicateColumnError(error: unknown) {
-    return typeof error === 'object' && error !== null && (
-      ('code' in error && error.code === 'ER_DUP_FIELDNAME') ||
-      ('errno' in error && error.errno === 1060) ||
-      ('message' in error && typeof error.message === 'string' && /duplicate column name/i.test(error.message))
-    )
-  }
-
-  private async addColumn(tableName: string, columnName: string, definition: string) {
-    try {
-      await this.schema.raw(`ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${definition}`)
-    } catch (error) {
-      if (!this.isDuplicateColumnError(error)) throw error
-    }
+  private async hasColumn(tableName: string, columnName: string) {
+    return Boolean(await db.from('information_schema.COLUMNS')
+      .select('COLUMN_NAME')
+      .where('TABLE_SCHEMA', db.raw('DATABASE()'))
+      .where('TABLE_NAME', tableName)
+      .where('COLUMN_NAME', columnName)
+      .first())
   }
 
   async up() {
-    await this.addColumn('classes', 'lesson_weekday', 'TINYINT NOT NULL DEFAULT 0')
-    await this.addColumn('discipleship_schedule', 'justification', 'TEXT NULL')
+    if (!(await this.hasColumn('classes', 'lesson_weekday'))) {
+      await this.schema.alterTable('classes', (table) => table.tinyint('lesson_weekday').notNullable().defaultTo(0))
+    }
+    if (!(await this.hasColumn('discipleship_schedule', 'justification'))) {
+      await this.schema.alterTable('discipleship_schedule', (table) => table.text('justification').nullable())
+    }
   }
 
   async down() {
-    await this.schema.raw('ALTER TABLE `discipleship_schedule` DROP COLUMN `justification`')
-    await this.schema.raw('ALTER TABLE `classes` DROP COLUMN `lesson_weekday`')
+    if (await this.hasColumn('discipleship_schedule', 'justification')) {
+      await this.schema.alterTable('discipleship_schedule', (table) => table.dropColumn('justification'))
+    }
+    if (await this.hasColumn('classes', 'lesson_weekday')) {
+      await this.schema.alterTable('classes', (table) => table.dropColumn('lesson_weekday'))
+    }
   }
 }
