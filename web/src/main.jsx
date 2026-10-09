@@ -121,7 +121,7 @@ function App() {
   const suppressStreetLookup = useRef(false), lastStreetLookupAt = useRef(0);
   const [selectedClass, setSelectedClass] = useState(''), [selectedTeacher, setSelectedTeacher] = useState(''), [lessonName, setLessonName] = useState(''), [attendanceDate, setAttendanceDate] = useState(today()), [entries, setEntries] = useState({});
   const [frequencyClass, setFrequencyClass] = useState('all');
-  const [integration, setIntegration] = useState({ enabled: false, formId: '', sections: {}, fields: {}, mappings: {} });
+  const [integration, setIntegration] = useState({ enabled: false, formId: '', sections: {}, fields: {}, mappings: {}, fixedAnswers: {} });
   const [formQuestions, setFormQuestions] = useState([]), [integrationBusy, setIntegrationBusy] = useState(false), [integrationMessage, setIntegrationMessage] = useState('');
   const [formSentItems, setFormSentItems] = useState({}), [formOpenedItems, setFormOpenedItems] = useState({});
   const apiFetch = (path, options = {}) => { const separator = path.includes('?') ? '&' : '?'; const scopedPath = `${path}${separator}congregationId=${encodeURIComponent(activeCongregationId)}`; return fetch(`${API}${scopedPath}`, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } }); };
@@ -317,6 +317,13 @@ function App() {
     { id: 'attendance', title: 'Chamadas', description: 'Compartilhe os encontros e registros de presença.', fields: ['Turma', 'Responsável', 'Tema do encontro', 'Data', 'Participante', 'Situação'] },
   ];
   const setIntegrationValue = (key, value) => { setIntegration((current) => ({ ...current, [key]: value })); setIntegrationMessage(''); };
+  const setFixedAnswer = (key, property, value) => setIntegration((current) => ({
+    ...current,
+    fixedAnswers: {
+      ...current.fixedAnswers,
+      [key]: property === 'questionId' ? { questionId: value, value: '' } : { ...current.fixedAnswers[key], [property]: value },
+    },
+  }));
   const saveIntegration = async () => {
     setIntegrationBusy(true); setIntegrationMessage('');
     try {
@@ -363,6 +370,11 @@ function App() {
     const url = new URL(`https://docs.google.com/forms/d/e/${encodeURIComponent(publicId)}/viewform`);
     url.searchParams.set('usp', 'pp_url');
     let mapped = 0;
+    Object.values(integration.fixedAnswers || {}).forEach((answer) => {
+      if (!answer.questionId || !answer.value) return;
+      url.searchParams.set(`entry.${answer.questionId}`, answer.value);
+      mapped += 1;
+    });
     for (const [label, value] of Object.entries(row.values)) {
       const key = `${row.sectionId}:${label}`;
       const entryId = integration.mappings[key];
@@ -416,6 +428,26 @@ function App() {
               </button>
             </div>
             <p className="integration-help">Os campos são lidos da página pública. Não é necessário conectar uma conta Google nem ter permissão de edição.</p>
+          </section>
+          <section className="panel">
+            <PanelHeading icon={FileInput} title="Valores fixos" description="Esses valores serão adicionados a todos os links pré-preenchidos desta congregação." />
+            <div className="fixed-answer-grid">{[['area', 'Área'], ['congregation', 'Congregação']].map(([key, label]) => {
+              const answer = integration.fixedAnswers?.[key] || { questionId: '', value: '' };
+              const question = formQuestions.find((item) => item.id === answer.questionId);
+              return <div className="fixed-answer-card" key={key}>
+                <b>{label}</b>
+                <label className="field">Pergunta do formulário
+                  <select disabled={!integration.enabled || !formQuestions.length} value={answer.questionId} onChange={(event) => setFixedAnswer(key, 'questionId', event.target.value)}>
+                    <option value="">{formQuestions.length ? 'Selecione a pergunta' : 'Leia os campos primeiro'}</option>
+                    {formQuestions.map((item) => <option value={item.id} key={item.id}>{item.title}</option>)}
+                  </select>
+                </label>
+                <label className="field">Valor fixo
+                  {question?.options?.length ? <select disabled={!integration.enabled} value={answer.value} onChange={(event) => setFixedAnswer(key, 'value', event.target.value)}><option value="">Selecione uma opção</option>{question.options.map((option) => <option value={option} key={option}>{option}</option>)}</select> : <input disabled={!integration.enabled || !question} value={answer.value} onChange={(event) => setFixedAnswer(key, 'value', event.target.value)} placeholder="Selecione a pergunta primeiro" />}
+                </label>
+              </div>;
+            })}</div>
+            <div className="integration-footer"><span className="integration-notice">Salve a configuração para aplicar Área e Congregação nos próximos links.</span><button className="button primary" disabled={integrationBusy} onClick={saveIntegration}><Save size={16} />Salvar valores</button></div>
           </section>
           <section className="panel">
             <PanelHeading icon={Settings} title="Seções e campos" description="Ative as seções e faça o de/para de cada campo com uma pergunta do formulário." />

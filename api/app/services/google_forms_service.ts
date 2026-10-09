@@ -5,6 +5,7 @@ const DEFAULT_SETTINGS = {
   sections: {} as Record<string, boolean>,
   fields: {} as Record<string, boolean>,
   mappings: {} as Record<string, string>,
+  fixedAnswers: {} as Record<string, { questionId: string; value: string }>,
 }
 
 export function getCongregationId(request: HttpContext['request']) {
@@ -47,6 +48,7 @@ export async function saveIntegration(congregationId: string, body: Record<strin
     sections: typeof body.sections === 'object' && body.sections ? body.sections : {},
     fields: typeof body.fields === 'object' && body.fields ? body.fields : {},
     mappings: typeof body.mappings === 'object' && body.mappings ? body.mappings : {},
+    fixedAnswers: typeof body.fixedAnswers === 'object' && body.fixedAnswers ? body.fixedAnswers : {},
   }
   const values = {
     enabled: body.enabled === true,
@@ -108,7 +110,11 @@ export async function scrapePublicFormQuestions(formIdValue: string) {
     const entryId = item[4][0]?.[0]
     const type = Number(item[3])
     if (entryId === undefined || type === 8 || type === 12) return []
-    return [{ id: String(entryId), title: item[1].trim(), type }]
+    const rawOptions = item[4][0]?.[1]
+    const options = Array.isArray(rawOptions)
+      ? rawOptions.map((option: any) => Array.isArray(option) && typeof option[0] === 'string' ? option[0] : '').filter(Boolean)
+      : []
+    return [{ id: String(entryId), title: item[1].trim(), type, options }]
   })
   if (!questions.length) throw new Error('Não encontrei perguntas no formulário público. Verifique o link e se aceita respostas.')
   return questions
