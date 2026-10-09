@@ -516,7 +516,7 @@ function App() {
       document.setFontSize(11);
       document.setTextColor(104, 106, 97);
       document.text(`Turma: ${report.class.name}`, margin, 65);
-      document.text(`Aulas ${weekdayPhrases[report.class.lessonWeekday] || 'aos domingos'}  ·  Horário: ${report.class.lessonTime}  ·  Início: ${formatDate(report.class.startDate)}`, margin, 72);
+      document.text(`Aulas ${weekdayPhrases[report.class.lessonWeekday] || 'aos domingos'}  ·  Início: ${formatDate(report.class.startDate)}`, margin, 72);
       const contactDigits = String(report.congregation.justificationContact || '').replace(/\D/g, '');
       const whatsappNumber = contactDigits ? `55${contactDigits}` : '';
       const whatsappUrl = whatsappNumber ? `https://wa.me/${whatsappNumber}` : '';
@@ -548,17 +548,16 @@ function App() {
           startY: tableY + 6,
           margin: { left: margin, right: margin, bottom: 30 },
           pageBreak: cycle.position === 3 ? 'avoid' : 'auto',
-          head: [['Data', 'Horário', 'Título da aula', 'Professor']],
+          head: [['Data', 'Título da aula', 'Professor']],
           body: cycleLessons.map((lesson) => [
             (() => { const date = new Date(`${lesson.date}T12:00:00Z`), weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', timeZone: 'UTC' }).format(date); return `${weekday.charAt(0).toLocaleUpperCase('pt-BR')}${weekday.slice(1)}, ${String(date.getUTCDate()).padStart(2, '0')} de ${abbreviatedMonths[date.getUTCMonth()]} de ${date.getUTCFullYear()}`; })(),
-            lesson.time || report.class.lessonTime || '09:00',
             lesson.title,
             lesson.teacher,
           ]),
           theme: 'grid',
           styles: { font: 'helvetica', fontSize: 10.5, cellPadding: 4, overflow: 'linebreak', textColor: [41, 43, 39], lineColor: [231, 225, 177] },
           headStyles: { fillColor: cycleColor, textColor: cycleIsLight ? [13, 83, 14] : [255, 255, 255], fontStyle: 'bold', fontSize: 11.5 },
-          columnStyles: { 0: { cellWidth: 58 }, 1: { cellWidth: 22 }, 2: { cellWidth: 106 }, 3: { cellWidth: 'auto' } },
+          columnStyles: { 0: { cellWidth: 67 }, 1: { cellWidth: 112 }, 2: { cellWidth: 'auto' } },
         });
         tableY = (document.lastAutoTable?.finalY || tableY) + 14;
       }
