@@ -1,9 +1,17 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 export default class extends BaseSchema {
+  private isDuplicateColumnError(error: unknown) {
+    return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_FIELDNAME'
+  }
+
   async up() {
     if (!(await this.schema.hasColumn('classes', 'start_date'))) {
-      await this.schema.alterTable('classes', (table) => table.date('start_date').nullable())
+      try {
+        await this.schema.alterTable('classes', (table) => table.date('start_date').nullable())
+      } catch (error) {
+        if (!this.isDuplicateColumnError(error)) throw error
+      }
     }
     if (await this.schema.hasTable('discipleship_schedule')) {
       await this.schema.raw(`
