@@ -17,6 +17,7 @@ const MENU: NavGroup[] = [
   { label: 'Cadastros', icon: 'folder-open', items: [{ label: 'Turmas', route: '/turmas' }, { label: 'Professores', route: '/professores' }] },
   { label: 'Operacional', icon: 'fact-check', items: [{ label: 'Chamadas', route: '/chamadas' }] },
   { label: 'Relatórios', icon: 'assessment', items: [{ label: 'Visão geral', route: '/relatorios' }, { label: 'Frequência', route: '/frequencia' }] },
+  { label: 'Configurações', icon: 'settings', items: [{ label: 'Integrações', route: '/integracoes' }] },
 ];
 
 function isRouteActive(pathname: string, route: string) {
@@ -244,6 +245,7 @@ export default function TabLayout() {
               <Tabs.Screen name="professores" />
               <Tabs.Screen name="relatorios" />
               <Tabs.Screen name="frequencia" options={{ href: null }} />
+              <Tabs.Screen name="integracoes" options={{ href: null }} />
             </Tabs>
           </View>
         </View>
