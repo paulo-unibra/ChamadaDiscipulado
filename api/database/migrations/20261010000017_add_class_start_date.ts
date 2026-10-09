@@ -1,19 +1,15 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 export default class extends BaseSchema {
-  private isDuplicateColumnError(error: unknown) {
-    return typeof error === 'object' && error !== null && (
-      ('code' in error && error.code === 'ER_DUP_FIELDNAME') ||
-      ('errno' in error && error.errno === 1060) ||
-      ('message' in error && typeof error.message === 'string' && /duplicate column name/i.test(error.message))
-    )
+  private async hasStartDateColumn() {
+    const result: any = await this.schema.raw(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'classes' AND COLUMN_NAME = 'start_date' LIMIT 1`)
+    const rows = Array.isArray(result) ? result[0] : result
+    return Array.isArray(rows) && rows.length > 0
   }
 
   async up() {
-    try {
+    if (!(await this.hasStartDateColumn())) {
       await this.schema.alterTable('classes', (table) => table.date('start_date').nullable())
-    } catch (error) {
-      if (!this.isDuplicateColumnError(error)) throw error
     }
     if (await this.schema.hasTable('discipleship_schedule')) {
       await this.schema.raw(`
