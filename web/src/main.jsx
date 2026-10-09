@@ -19,7 +19,7 @@ const nearestWeekday = (weekday, baseDate = new Date()) => { const date = baseDa
 const isValidIsoDateClient = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime()) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 const weekdays = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const weekdayPhrases = ['aos domingos', 'às segundas-feiras', 'às terças-feiras', 'às quartas-feiras', 'às quintas-feiras', 'às sextas-feiras', 'aos sábados'];
-const cycleTextColor = (color) => { const value = String(color || '').replace('#', ''); if (!/^[0-9a-fA-F]{6}$/.test(value)) return color; const rgb = [0, 2, 4].map((index) => parseInt(value.slice(index, index + 2), 16)); return rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114 > 165 ? '#0D530E' : color; };
+const cycleTextColor = () => '#292B27';
 const formatDate = (value) => value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value.slice(0, 10)}T12:00:00Z`)) : '—';
 const conversionEvents = [
   'ADESIVAÇO', 'ADOLESCENTES: TESTEMUNHAS', 'Aniversário de Campanha Evangelizadora', 'Aniversário de Conjunto Musical',
@@ -465,30 +465,30 @@ function App() {
         document.addImage(logo.data, 'PNG', margin, 12 + (maxLogoHeight - logoHeight) / 2, logoWidth, logoHeight, undefined, 'FAST');
       }
       const identityX = logo ? margin + 37 : margin;
-      document.setTextColor(13, 83, 14);
+      document.setTextColor(41, 43, 39);
       document.setFont('helvetica', 'bold');
       document.setFontSize(16);
       document.text(report.congregation.name || 'Congregação', identityX, 24);
       document.setFont('helvetica', 'normal');
       document.setFontSize(10);
-      document.setTextColor(100, 116, 139);
+      document.setTextColor(104, 106, 97);
       document.text(`Setor ${report.congregation.sector || '—'}  ·  Área ${report.congregation.area || '—'}`, identityX, 31);
       document.setDrawColor(222, 228, 236);
       document.line(margin, 46, pageWidth - margin, 46);
       document.setFont('helvetica', 'bold');
       document.setFontSize(22);
-      document.setTextColor(13, 83, 14);
+      document.setTextColor(41, 43, 39);
       document.text('Escala do Discipulado', margin, 57);
       document.setFont('helvetica', 'normal');
       document.setFontSize(11);
-      document.setTextColor(91, 107, 127);
+      document.setTextColor(104, 106, 97);
       document.text(`Turma: ${report.class.name}`, margin, 65);
       document.text(`Aulas ${weekdayPhrases[report.class.lessonWeekday] || 'aos domingos'}  ·  Início: ${formatDate(report.class.startDate)}`, margin, 72);
       const contactDigits = String(report.congregation.justificationContact || '').replace(/\D/g, '');
       const whatsappNumber = contactDigits ? `55${contactDigits}` : '';
       const whatsappUrl = whatsappNumber ? `https://wa.me/${whatsappNumber}` : '';
       const abbreviatedMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-      const cycleRgb = (hex) => { const value = String(hex || '').replace('#', ''); return /^[0-9a-fA-F]{6}$/.test(value) ? [0, 2, 4].map((index) => parseInt(value.slice(index, index + 2), 16)) : [100, 116, 139]; };
+      const cycleRgb = (hex) => { const value = String(hex || '').replace('#', ''); return /^[0-9a-fA-F]{6}$/.test(value) ? [0, 2, 4].map((index) => parseInt(value.slice(index, index + 2), 16)) : [48, 109, 41]; };
       const cycles = report.cycles?.length ? report.cycles : [{ id: 'uncategorized', name: 'Aulas do discipulado', color: '#64748B', position: 1 }];
       let tableY = 85;
       for (const cycle of cycles) {
@@ -506,7 +506,7 @@ function App() {
         const cycleIsLight = cycleColor[0] * 0.299 + cycleColor[1] * 0.587 + cycleColor[2] * 0.114 > 165;
         document.setFont('helvetica', 'bold');
         document.setFontSize(13);
-        document.setTextColor(...(cycleIsLight ? [13, 83, 14] : cycleColor));
+        document.setTextColor(41, 43, 39);
         document.text(cycle.name, margin, tableY);
         document.setDrawColor(...cycleColor);
         document.setLineWidth(0.6);
@@ -522,7 +522,7 @@ function App() {
             lesson.teacher,
           ]),
           theme: 'grid',
-          styles: { font: 'helvetica', fontSize: 10.5, cellPadding: 4, overflow: 'linebreak', textColor: [13, 83, 14], lineColor: [231, 225, 177] },
+          styles: { font: 'helvetica', fontSize: 10.5, cellPadding: 4, overflow: 'linebreak', textColor: [41, 43, 39], lineColor: [231, 225, 177] },
           headStyles: { fillColor: cycleColor, textColor: cycleIsLight ? [13, 83, 14] : [255, 255, 255], fontStyle: 'bold', fontSize: 11.5 },
           columnStyles: { 0: { cellWidth: 67 }, 1: { cellWidth: 112 }, 2: { cellWidth: 'auto' } },
         });
@@ -536,12 +536,12 @@ function App() {
         }
         document.setFont('helvetica', 'normal');
         document.setFontSize(13);
-        document.setTextColor(52, 64, 84);
+        document.setTextColor(41, 43, 39);
         document.text('Paz do Senhor! Caso não possa atender à escala,', margin, contactY);
         document.setTextColor(48, 109, 41);
         document.textWithLink('clique aqui para avisar pelo WhatsApp.', margin, contactY + 6, { url: whatsappUrl });
         document.setFontSize(11);
-        document.setTextColor(91, 107, 127);
+        document.setTextColor(104, 106, 97);
         document.text(`Contato para justificativas: ${formatBrazilPhone(contactDigits)}`, margin, contactY + 12);
       }
       const pageCount = document.getNumberOfPages();
@@ -549,7 +549,7 @@ function App() {
         document.setPage(page);
         document.setFont('helvetica', 'normal');
         document.setFontSize(8);
-        document.setTextColor(130, 142, 158);
+        document.setTextColor(104, 106, 97);
         document.text(`Página ${page} de ${pageCount}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
       }
       const blob = document.output('blob');
