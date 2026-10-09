@@ -327,34 +327,45 @@ function App() {
   }, [data.congregations, activeCongregationId]);
   useEffect(() => {
     const currentClass = data.classes.find((group) => group.id === scaleClassId);
-    if (page !== 'escala' || data.activeCongregationId !== activeCongregationId || !currentClass || data.discipleshipSchedule.some((lesson) => lesson.classId === currentClass.id) || initializedScaleClasses.current.has(currentClass.id)) return;
+    if (page !== 'escala' || data.activeCongregationId !== activeCongregationId || !currentClass || initializedScaleClasses.current.has(currentClass.id)) return;
+    const currentSchedule = data.discipleshipSchedule.filter((lesson) => lesson.classId === currentClass.id).sort((a, b) => a.date.localeCompare(b.date));
+    const curriculum = [...data.discipleshipLessons.slice(0, 21), 'EVANGELISMO'];
+    if (currentSchedule.length === 22 && currentSchedule.every((lesson, index) => lesson.title === curriculum[index])) {
+      initializedScaleClasses.current.add(currentClass.id);
+      return;
+    }
     initializedScaleClasses.current.add(currentClass.id);
     const previousClass = data.classes.find((group) => /2026\.1/.test(group.name));
     const previousSchedule = previousClass ? data.discipleshipSchedule.filter((lesson) => lesson.classId === previousClass.id).sort((a, b) => a.date.localeCompare(b.date)) : [];
     const previousAttendance = previousClass ? data.attendanceRecords.filter((record) => record.classId === previousClass.id).sort((a, b) => a.date.localeCompare(b.date)) : [];
     const history = previousSchedule.length ? previousSchedule : previousAttendance;
     const lessonWeekday = Number(currentClass.lessonWeekday ?? 0);
-    const currentAttendance = data.attendanceRecords.filter((record) => record.classId === currentClass.id);
+    const currentAttendance = data.attendanceRecords.filter((record) => record.classId === currentClass.id).sort((a, b) => a.date.localeCompare(b.date));
     const startDate = currentClass.startDate || nearestWeekday(lessonWeekday);
-    const startTime = new Date(`${startDate}T12:00:00Z`).getTime();
-    const elapsedLessons = currentAttendance.map((record) => Math.floor((new Date(`${record.date}T12:00:00Z`).getTime() - startTime) / 604_800_000) + 1).filter((count) => count > 0);
-    const lessonCount = Math.max(data.discipleshipLessons.length, history.length, ...elapsedLessons, 0);
-    const sundays = [];
-    for (let index = 0; index < lessonCount; index += 1) {
-      const date = new Date(`${startDate}T12:00:00Z`);
-      date.setUTCDate(date.getUTCDate() + index * 7);
-      const dateString = date.toISOString().slice(0, 10);
-      const actualLesson = currentAttendance.find((record) => record.date === dateString);
+    const lessons = [];
+    const usedDates = new Set();
+    for (let index = 0; index < 22; index += 1) {
+      const scheduledLesson = currentSchedule[index];
+      const attendanceLesson = currentSchedule.length ? currentAttendance.find((record) => record.date === scheduledLesson?.date) : currentAttendance[index];
       const priorLesson = history[index % (history.length || 1)];
-      const priorTeacherId = actualLesson?.teacherIds?.[0] || priorLesson?.teacherId || priorLesson?.teacherIds?.[0] || '';
+      const priorTeacherId = scheduledLesson?.teacherId || attendanceLesson?.teacherIds?.[0] || priorLesson?.teacherId || priorLesson?.teacherIds?.[0] || '';
       const teacherId = data.teachers.some((teacher) => teacher.id === priorTeacherId) ? priorTeacherId : data.teachers.length ? data.teachers[index % data.teachers.length].id : '';
-      sundays.push({ date: dateString, title: actualLesson?.lessonName || priorLesson?.title || priorLesson?.lessonName || data.discipleshipLessons[index % (data.discipleshipLessons.length || 1)] || 'Aula de discipulado', teacherId, justification: new Date(`${dateString}T12:00:00Z`).getUTCDay() === lessonWeekday ? '' : 'Data conforme aula registrada.' });
+      let date = scheduledLesson?.date || attendanceLesson?.date || '';
+      if (!date) {
+        const next = new Date(`${startDate}T12:00:00Z`);
+        next.setUTCDate(next.getUTCDate() + index * 7);
+        date = next.toISOString().slice(0, 10);
+      }
+      while (usedDates.has(date)) {
+        const next = new Date(`${date}T12:00:00Z`);
+        next.setUTCDate(next.getUTCDate() + 7);
+        date = next.toISOString().slice(0, 10);
+      }
+      usedDates.add(date);
+      const isExceptionDate = new Date(`${date}T12:00:00Z`).getUTCDay() !== lessonWeekday;
+      lessons.push({ id: scheduledLesson?.id, date, title: curriculum[index] || 'EVANGELISMO', teacherId, justification: scheduledLesson?.justification || (isExceptionDate ? 'Data de aula excepcional.' : '') });
     }
-    for (const attendance of currentAttendance) {
-      if (!isValidIsoDateClient(attendance.date) || sundays.some((lesson) => lesson.date === attendance.date)) continue;
-      sundays.push({ date: attendance.date, title: attendance.lessonName || 'Aula de discipulado', teacherId: attendance.teacherIds?.[0] || '', justification: 'Data conforme aula registrada.' });
-    }
-    apiFetch(`/school/classes/${currentClass.id}/scale`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lessons: sundays }) })
+    apiFetch(`/school/classes/${currentClass.id}/scale`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lessons }) })
       .then(async (response) => { const payload = await response.json(); if (!response.ok) throw new Error(payload.message || 'Não foi possível preparar a escala.'); applyState(payload); })
       .catch((error) => { initializedScaleClasses.current.delete(currentClass.id); setError(error.message || 'Não foi possível preparar a escala.'); });
   }, [page, scaleClassId, data.activeCongregationId, data.classes, data.discipleshipSchedule, data.attendanceRecords, data.discipleshipLessons, data.teachers, activeCongregationId]);
@@ -773,7 +784,7 @@ function App() {
         {page === 'turmas' && <section className="panel"><PanelHeading icon={Users} title="Novo participante" description="Cadastre uma pessoa e, se quiser, vincule-a a uma turma."/><form className="form-row" onSubmit={(e) => { e.preventDefault(); createStudent(); }}><label className="field grow">Nome completo<input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Ex.: Maria Oliveira" required/></label><label className="field grow">Turma<select value={studentClass} onChange={(e) => setStudentClass(e.target.value)}><option value="">Sem turma por enquanto</option>{data.classes.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button primary form-button"><Plus size={16}/> Cadastrar participante</button></form>{data.students.length > 0 && <div className="table-wrap student-table"><table><thead><tr><th>Participante</th><th>Turma</th></tr></thead><tbody>{data.students.map((student) => <tr key={student.id}><td><b>{student.name}</b></td><td>{data.classes.filter((group) => group.studentIds?.includes(student.id)).map((group) => group.name).join(', ') || 'Sem turma'}</td></tr>)}</tbody></table></div>}</section>}
         {page === 'escala' && <>
           <section className="panel scale-panel"><div className="panel-heading"><div><h2>Escala · {currentDiscipleshipClass?.name || 'Turma atual'}</h2><p>Aulas {weekdayPhrases[Number(currentDiscipleshipClass?.lessonWeekday ?? 0)]}; início em {formatDate(currentDiscipleshipClass?.startDate)}.</p></div><div className="scale-actions">{data.classes.length > 1 && <label className="field scale-class-picker">Turma<select value={currentDiscipleshipClass?.id || ''} onChange={(event) => { const id = event.target.value; setScaleClassId(id); localStorage.setItem(`campanha-escala-turma:${activeCongregationId}`, id); setEditingScale(null); setEditingClassStart(null); }} aria-label="Selecionar turma para a escala">{data.classes.map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></label>}<button className="button secondary" onClick={() => currentDiscipleshipClass && setEditingClassStart({ id: currentDiscipleshipClass.id, name: currentDiscipleshipClass.name, startDate: currentDiscipleshipClass.startDate, lessonWeekday: Number(currentDiscipleshipClass.lessonWeekday ?? 0) })} disabled={!currentDiscipleshipClass}><Pencil size={16}/> Alterar início/dia</button><button className="button secondary" onClick={exportScale} disabled={!classSchedule.length || scaleExporting}><FileText size={16}/>{scaleExporting ? 'Gerando PDF…' : 'Exportar PDF'}</button></div></div>
-            {!currentDiscipleshipClass ? <Empty message="Nenhuma turma cadastrada" detail="Cadastre uma turma para montar a escala de aulas."/> : !classSchedule.length ? <div className="scale-empty"><CalendarDays size={30}/><b>Preparando a escala da turma</b><span>Os temas e professores da turma anterior serão usados como base, e a agenda ficará disponível para edição.</span></div> : <>
+            {!currentDiscipleshipClass ? <Empty message="Nenhuma turma cadastrada" detail="Cadastre uma turma para montar a escala de aulas."/> : !classSchedule.length ? <div className="scale-empty"><CalendarDays size={30}/><b>Preparando as 22 aulas da turma</b><span>A sequência começa em Introdução ao Discipulado e termina em Evangelismo. Datas e professores ficam disponíveis para edição.</span></div> : <>
               <div className="scale-calendar no-print">{scaleMonths.map((month) => { const year = month.getUTCFullYear(), monthIndex = month.getUTCMonth(), monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`, offset = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay(), days = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate(), totalCells = Math.ceil((offset + days) / 7) * 7; return <article className="scale-month" key={monthKey}><h3>{new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(month)}</h3><div className="scale-calendar-grid">{weekdays.map((weekday) => <span className="scale-weekday" key={weekday}>{weekday.slice(0, 3)}</span>)}{Array.from({ length: totalCells }, (_, cellIndex) => { const day = cellIndex - offset + 1; if (day < 1 || day > days) return <span className="scale-day empty" key={`${monthKey}-empty-${cellIndex}`}/>; const date = `${monthKey}-${String(day).padStart(2, '0')}`, lesson = classSchedule.find((item) => item.date === date); const dayContent = <><span className="scale-day-number">{day}</span>{lesson && <span className="scale-day-lesson"><b>{lesson.title}</b><small>{data.teachers.find((teacher) => teacher.id === lesson.teacherId)?.name || 'A definir'}</small>{lesson.justification && <small className="scale-day-reason">Justificativa registrada</small>}</span>}</>; return lesson ? <button className="scale-day has-lesson" key={date} onClick={() => setEditingScale({ ...lesson, originalDate: lesson.date })} aria-label={`${formatDate(date)}: ${lesson.title}, ${data.teachers.find((teacher) => teacher.id === lesson.teacherId)?.name || 'professor a definir'}`}>{dayContent}</button> : <span className={`scale-day ${new Date(`${date}T12:00:00Z`).getUTCDay() === Number(currentDiscipleshipClass.lessonWeekday ?? 0) ? 'sunday' : ''}`} key={date}>{dayContent}</span>; })}</div></article>; })}</div>
               <div className="table-wrap scale-print-list"><table className="scale-table"><thead><tr><th>Data</th><th>Título da aula</th><th>Professor</th><th>Justificativa de alteração</th></tr></thead><tbody>{classSchedule.map((lesson) => <tr key={lesson.id}><td><b>{new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${lesson.date}T12:00:00Z`))}</b></td><td>{lesson.title}</td><td>{data.teachers.find((teacher) => teacher.id === lesson.teacherId)?.name || 'A definir'}</td><td>{lesson.justification || '—'}</td></tr>)}</tbody></table></div>
             </>}
