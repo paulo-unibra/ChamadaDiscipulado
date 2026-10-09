@@ -46,6 +46,7 @@ router
     router.post('/school/classes', [SchoolController, 'createClass'])
     router.delete('/school/classes/:id', [SchoolController, 'deleteClass'])
     router.put('/school/classes/:id/scale', [SchoolController, 'saveClassScale'])
+    router.get('/school/classes/:id/scale/export', [SchoolController, 'exportClassScale'])
     router.put('/school/classes/:id/start-date', [SchoolController, 'updateClassStartDate'])
 
     router.post('/school/students', [SchoolController, 'createStudent'])

@@ -893,6 +893,51 @@ export default class SchoolController {
     return response.ok(await getState(congregationId))
   }
 
+  async exportClassScale({ request, params, response }: HttpContext) {
+    const congregationId = getCongregationId(request)
+    const classRow = await db
+      .from('classes')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .whereNull('deleted_at')
+      .first()
+    if (!classRow) return response.notFound({ message: 'Turma não encontrada nesta congregação.' })
+
+    const [congregation, lessonRows] = await Promise.all([
+      db.from('congregations')
+        .select('id', 'name', 'area', 'sector', 'logo_data')
+        .where('id', congregationId)
+        .first(),
+      db.from('discipleship_schedule as schedule')
+        .leftJoin('teachers as teacher', 'teacher.id', 'schedule.teacher_id')
+        .select('schedule.lesson_date', 'schedule.title', 'schedule.justification', 'teacher.name as teacher_name')
+        .where('schedule.class_id', params.id)
+        .where('schedule.congregation_id', congregationId)
+        .orderBy('schedule.lesson_date', 'asc'),
+    ])
+
+    return response.ok({
+      congregation: {
+        name: congregation?.name || '',
+        area: congregation?.area || '',
+        sector: congregation?.sector || '',
+        logoData: congregation?.logo_data || '',
+      },
+      class: {
+        id: String(classRow.id),
+        name: classRow.name,
+        startDate: normalizeDateForClient(classRow.start_date),
+        lessonWeekday: Number(classRow.lesson_weekday ?? 0),
+      },
+      lessons: lessonRows.map((lesson) => ({
+        date: normalizeDateForClient(lesson.lesson_date),
+        title: lesson.title,
+        teacher: lesson.teacher_name || 'A definir',
+        justification: lesson.justification || '',
+      })),
+    })
+  }
+
   async createStudent({ request, response }: HttpContext) {
     const payload = request.body() as StudentPayload
     const name = safeString(payload.name)
