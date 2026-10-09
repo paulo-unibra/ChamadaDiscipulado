@@ -12,6 +12,7 @@ import { middleware } from './kernel.js'
 
 const SchoolController = () => import('#controllers/school_controller')
 const AuthController = () => import('#controllers/auth_controller')
+const IntegrationsController = () => import('#controllers/integrations_controller')
 
 router.get('/', async () => {
   return {
@@ -26,9 +27,14 @@ router.post('/auth/verify', [AuthController, 'verify'])
 router.get('/auth/session', [AuthController, 'session']).use(middleware.requireAuth())
 router.post('/auth/password', [AuthController, 'changePassword']).use(middleware.requireAuth())
 router.post('/auth/logout', [AuthController, 'logout']).use(middleware.requireAuth())
+router.get('/integrations/google/callback', [IntegrationsController, 'callback'])
 
 router
   .group(() => {
+    router.get('/integrations/google/forms', [IntegrationsController, 'show'])
+    router.put('/integrations/google/forms', [IntegrationsController, 'save'])
+    router.post('/integrations/google/connect', [IntegrationsController, 'connect'])
+    router.get('/integrations/google/forms/:formId/questions', [IntegrationsController, 'questions'])
     router.get('/school/state', [SchoolController, 'state'])
     router.post('/school/congregations', [SchoolController, 'createCongregation'])
     router.post('/school/new-converts', [SchoolController, 'createNewConvert'])
