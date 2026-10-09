@@ -18,6 +18,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const nearestWeekday = (weekday, baseDate = new Date()) => { const date = baseDate instanceof Date ? new Date(Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate())) : new Date(`${baseDate}T12:00:00Z`), current = date.getUTCDay(), forward = (weekday - current + 7) % 7, backward = forward === 0 ? 0 : forward - 7, offset = Math.abs(backward) < Math.abs(forward) ? backward : forward; date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); };
 const isValidIsoDateClient = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime()) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 const weekdays = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+const weekdayPhrases = ['aos domingos', 'às segundas-feiras', 'às terças-feiras', 'às quartas-feiras', 'às quintas-feiras', 'às sextas-feiras', 'aos sábados'];
 const formatDate = (value) => value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value.slice(0, 10)}T12:00:00Z`)) : '—';
 const conversionEvents = [
   'ADESIVAÇO', 'ADOLESCENTES: TESTEMUNHAS', 'Aniversário de Campanha Evangelizadora', 'Aniversário de Conjunto Musical',
@@ -431,8 +432,9 @@ function App() {
       const pageWidth = document.internal.pageSize.getWidth();
       const pageHeight = document.internal.pageSize.getHeight();
       const margin = 15;
+      let logo = null;
       if (report.congregation.logoData) {
-        const logo = await new Promise((resolve, reject) => {
+        logo = await new Promise((resolve, reject) => {
           const image = new Image();
           image.onload = () => {
             const canvas = window.document.createElement('canvas');
@@ -440,14 +442,17 @@ function App() {
             canvas.width = Math.max(1, Math.round(image.width * ratio));
             canvas.height = Math.max(1, Math.round(image.height * ratio));
             canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL('image/png'));
+            resolve({ data: canvas.toDataURL('image/png'), aspectRatio: canvas.width / canvas.height });
           };
           image.onerror = () => reject(new Error('Não foi possível carregar a logo da congregação.'));
           image.src = report.congregation.logoData;
         });
-        document.addImage(logo, 'PNG', margin, 12, 25, 25, undefined, 'FAST');
+        const maxLogoWidth = 32, maxLogoHeight = 25;
+        const logoWidth = Math.min(maxLogoWidth, maxLogoHeight * logo.aspectRatio);
+        const logoHeight = logoWidth / logo.aspectRatio;
+        document.addImage(logo.data, 'PNG', margin, 12 + (maxLogoHeight - logoHeight) / 2, logoWidth, logoHeight, undefined, 'FAST');
       }
-      const identityX = report.congregation.logoData ? 46 : margin;
+      const identityX = logo ? margin + 37 : margin;
       document.setTextColor(38, 54, 75);
       document.setFont('helvetica', 'bold');
       document.setFontSize(16);
@@ -466,21 +471,20 @@ function App() {
       document.setFontSize(10);
       document.setTextColor(91, 107, 127);
       document.text(`Turma: ${report.class.name}`, margin, 62);
-      document.text(`Aulas às ${weekdays[report.class.lessonWeekday] || 'Domingo'}  ·  Início: ${formatDate(report.class.startDate)}`, margin, 68);
+      document.text(`Aulas ${weekdayPhrases[report.class.lessonWeekday] || 'aos domingos'}  ·  Início: ${formatDate(report.class.startDate)}`, margin, 68);
       autoTable(document, {
         startY: 75,
         margin: { left: margin, right: margin, bottom: 18 },
-        head: [['Data', 'Título da aula', 'Professor', 'Justificativa']],
+        head: [['Data', 'Título da aula', 'Professor']],
         body: report.lessons.map((lesson) => [
-          new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${lesson.date}T12:00:00Z`)),
+          (() => { const value = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${lesson.date}T12:00:00Z`)); return `${value.charAt(0).toLocaleUpperCase('pt-BR')}${value.slice(1)}`; })(),
           lesson.title,
           lesson.teacher,
-          lesson.justification || '—',
         ]),
         theme: 'grid',
         styles: { font: 'helvetica', fontSize: 8, cellPadding: 3, overflow: 'linebreak', textColor: [52, 64, 84], lineColor: [229, 233, 239] },
         headStyles: { fillColor: [38, 58, 87], textColor: [255, 255, 255], fontStyle: 'bold' },
-        columnStyles: { 0: { cellWidth: 43 }, 1: { cellWidth: 59 }, 2: { cellWidth: 36 }, 3: { cellWidth: 'auto' } },
+        columnStyles: { 0: { cellWidth: 48 }, 1: { cellWidth: 78 }, 2: { cellWidth: 'auto' } },
       });
       const pageCount = document.getNumberOfPages();
       for (let page = 1; page <= pageCount; page += 1) {
@@ -748,7 +752,7 @@ function App() {
         {page === 'turmas' && <><section className="panel"><PanelHeading icon={Users} title="Nova turma" description="Escolha o dia semanal. A primeira aula começará na data mais próxima desse dia."/><form className="form-row" onSubmit={(e) => { e.preventDefault(); createClass(); }}><label className="field grow">Nome da turma<input value={className} onChange={(e) => setClassName(e.target.value)} placeholder="Ex.: Grupo Esperança" required/></label><label className="field weekday-field">Dia das aulas<select value={classWeekday} onChange={(e) => { const weekday = Number(e.target.value); setClassWeekday(weekday); if (classStartDateAuto) setClassStartDate(nearestWeekday(weekday)); }} required>{weekdays.map((day, index) => <option key={day} value={index}>{day}</option>)}</select></label><label className="field start-date-field">Início da turma<input type="date" value={classStartDate} onChange={(e) => { setClassStartDate(e.target.value); setClassStartDateAuto(false); }} required/></label><button className="button primary form-button"><Plus size={16}/> Criar turma</button></form></section><section className="panel"><PanelHeading icon={FolderOpen} title="Turmas cadastradas" description={`${data.classes.length} grupos cadastrados`}/>{data.classes.length ? <div className="table-wrap"><table><thead><tr><th>Nome da turma</th><th>Dia</th><th>Data de início</th><th>Descrição</th><th>Participantes</th><th></th></tr></thead><tbody>{data.classes.map((group) => <tr key={group.id}><td><b>{group.name}</b></td><td>{weekdays[Number(group.lessonWeekday ?? 0)]}</td><td>{formatDate(group.startDate)}</td><td>{group.description || '—'}</td><td><span className="badge blue">{group.studentIds?.length || 0} pessoas</span></td><td><button className="small-edit" onClick={() => setEditingClassStart({ id: group.id, name: group.name, startDate: group.startDate, lessonWeekday: Number(group.lessonWeekday ?? 0) })}><Pencil size={14}/> Editar escala</button> <button className="small-danger" onClick={() => window.confirm(`Apagar a turma ${group.name}?`) && notify(() => request(`/school/classes/${group.id}`, 'DELETE'))}>Apagar</button></td></tr>)}</tbody></table></div> : <Empty message="Nenhuma turma cadastrada" detail="Crie uma turma para organizar os participantes."/>}</section></>}
         {page === 'turmas' && <section className="panel"><PanelHeading icon={Users} title="Novo participante" description="Cadastre uma pessoa e, se quiser, vincule-a a uma turma."/><form className="form-row" onSubmit={(e) => { e.preventDefault(); createStudent(); }}><label className="field grow">Nome completo<input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="Ex.: Maria Oliveira" required/></label><label className="field grow">Turma<select value={studentClass} onChange={(e) => setStudentClass(e.target.value)}><option value="">Sem turma por enquanto</option>{data.classes.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button primary form-button"><Plus size={16}/> Cadastrar participante</button></form>{data.students.length > 0 && <div className="table-wrap student-table"><table><thead><tr><th>Participante</th><th>Turma</th></tr></thead><tbody>{data.students.map((student) => <tr key={student.id}><td><b>{student.name}</b></td><td>{data.classes.filter((group) => group.studentIds?.includes(student.id)).map((group) => group.name).join(', ') || 'Sem turma'}</td></tr>)}</tbody></table></div>}</section>}
         {page === 'escala' && <>
-          <section className="panel scale-panel"><div className="panel-heading"><div><h2>Escala · {currentDiscipleshipClass?.name || 'Turma atual'}</h2><p>Aulas às {weekdays[Number(currentDiscipleshipClass?.lessonWeekday ?? 0)]}; início em {formatDate(currentDiscipleshipClass?.startDate)}.</p></div><div className="scale-actions">{data.classes.length > 1 && <label className="field scale-class-picker">Turma<select value={currentDiscipleshipClass?.id || ''} onChange={(event) => { const id = event.target.value; setScaleClassId(id); localStorage.setItem(`campanha-escala-turma:${activeCongregationId}`, id); setEditingScale(null); setEditingClassStart(null); }} aria-label="Selecionar turma para a escala">{data.classes.map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></label>}<button className="button secondary" onClick={() => currentDiscipleshipClass && setEditingClassStart({ id: currentDiscipleshipClass.id, name: currentDiscipleshipClass.name, startDate: currentDiscipleshipClass.startDate, lessonWeekday: Number(currentDiscipleshipClass.lessonWeekday ?? 0) })} disabled={!currentDiscipleshipClass}><Pencil size={16}/> Alterar início/dia</button><button className="button secondary" onClick={exportScale} disabled={!classSchedule.length || scaleExporting}><FileText size={16}/>{scaleExporting ? 'Gerando PDF…' : 'Exportar PDF'}</button></div></div>
+          <section className="panel scale-panel"><div className="panel-heading"><div><h2>Escala · {currentDiscipleshipClass?.name || 'Turma atual'}</h2><p>Aulas {weekdayPhrases[Number(currentDiscipleshipClass?.lessonWeekday ?? 0)]}; início em {formatDate(currentDiscipleshipClass?.startDate)}.</p></div><div className="scale-actions">{data.classes.length > 1 && <label className="field scale-class-picker">Turma<select value={currentDiscipleshipClass?.id || ''} onChange={(event) => { const id = event.target.value; setScaleClassId(id); localStorage.setItem(`campanha-escala-turma:${activeCongregationId}`, id); setEditingScale(null); setEditingClassStart(null); }} aria-label="Selecionar turma para a escala">{data.classes.map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></label>}<button className="button secondary" onClick={() => currentDiscipleshipClass && setEditingClassStart({ id: currentDiscipleshipClass.id, name: currentDiscipleshipClass.name, startDate: currentDiscipleshipClass.startDate, lessonWeekday: Number(currentDiscipleshipClass.lessonWeekday ?? 0) })} disabled={!currentDiscipleshipClass}><Pencil size={16}/> Alterar início/dia</button><button className="button secondary" onClick={exportScale} disabled={!classSchedule.length || scaleExporting}><FileText size={16}/>{scaleExporting ? 'Gerando PDF…' : 'Exportar PDF'}</button></div></div>
             {!currentDiscipleshipClass ? <Empty message="Nenhuma turma cadastrada" detail="Cadastre uma turma para montar a escala de aulas."/> : !classSchedule.length ? <div className="scale-empty"><CalendarDays size={30}/><b>Preparando a escala da turma</b><span>Os temas e professores da turma anterior serão usados como base, e a agenda ficará disponível para edição.</span></div> : <>
               <div className="scale-calendar no-print">{scaleMonths.map((month) => { const year = month.getUTCFullYear(), monthIndex = month.getUTCMonth(), monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`, offset = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay(), days = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate(), totalCells = Math.ceil((offset + days) / 7) * 7; return <article className="scale-month" key={monthKey}><h3>{new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(month)}</h3><div className="scale-calendar-grid">{weekdays.map((weekday) => <span className="scale-weekday" key={weekday}>{weekday.slice(0, 3)}</span>)}{Array.from({ length: totalCells }, (_, cellIndex) => { const day = cellIndex - offset + 1; if (day < 1 || day > days) return <span className="scale-day empty" key={`${monthKey}-empty-${cellIndex}`}/>; const date = `${monthKey}-${String(day).padStart(2, '0')}`, lesson = classSchedule.find((item) => item.date === date); const dayContent = <><span className="scale-day-number">{day}</span>{lesson && <span className="scale-day-lesson"><b>{lesson.title}</b><small>{data.teachers.find((teacher) => teacher.id === lesson.teacherId)?.name || 'A definir'}</small>{lesson.justification && <small className="scale-day-reason">Justificativa registrada</small>}</span>}</>; return lesson ? <button className="scale-day has-lesson" key={date} onClick={() => setEditingScale({ ...lesson, originalDate: lesson.date })} aria-label={`${formatDate(date)}: ${lesson.title}, ${data.teachers.find((teacher) => teacher.id === lesson.teacherId)?.name || 'professor a definir'}`}>{dayContent}</button> : <span className={`scale-day ${new Date(`${date}T12:00:00Z`).getUTCDay() === Number(currentDiscipleshipClass.lessonWeekday ?? 0) ? 'sunday' : ''}`} key={date}>{dayContent}</span>; })}</div></article>; })}</div>
               <div className="table-wrap scale-print-list"><table className="scale-table"><thead><tr><th>Data</th><th>Título da aula</th><th>Professor</th><th>Justificativa de alteração</th></tr></thead><tbody>{classSchedule.map((lesson) => <tr key={lesson.id}><td><b>{new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${lesson.date}T12:00:00Z`))}</b></td><td>{lesson.title}</td><td>{data.teachers.find((teacher) => teacher.id === lesson.teacherId)?.name || 'A definir'}</td><td>{lesson.justification || '—'}</td></tr>)}</tbody></table></div>
