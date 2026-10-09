@@ -428,7 +428,7 @@ function App() {
       const report = await response.json();
       if (!response.ok) throw new Error(report.message || 'Não foi possível preparar a escala para exportação.');
       const [{ jsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
-      const document = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const document = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       const pageWidth = document.internal.pageSize.getWidth();
       const pageHeight = document.internal.pageSize.getHeight();
       const margin = 15;
@@ -456,25 +456,25 @@ function App() {
       document.setTextColor(38, 54, 75);
       document.setFont('helvetica', 'bold');
       document.setFontSize(16);
-      document.text(report.congregation.name || 'Congregação', identityX, 20);
+      document.text(report.congregation.name || 'Congregação', identityX, 24);
       document.setFont('helvetica', 'normal');
       document.setFontSize(10);
       document.setTextColor(100, 116, 139);
-      document.text(`Setor ${report.congregation.sector || '—'}  ·  Área ${report.congregation.area || '—'}`, identityX, 27);
+      document.text(`Setor ${report.congregation.sector || '—'}  ·  Área ${report.congregation.area || '—'}`, identityX, 31);
       document.setDrawColor(222, 228, 236);
-      document.line(margin, 43, pageWidth - margin, 43);
+      document.line(margin, 46, pageWidth - margin, 46);
       document.setFont('helvetica', 'bold');
-      document.setFontSize(19);
+      document.setFontSize(22);
       document.setTextColor(38, 54, 75);
-      document.text('Escala do Discipulado', margin, 54);
+      document.text('Escala do Discipulado', margin, 57);
       document.setFont('helvetica', 'normal');
-      document.setFontSize(10);
+      document.setFontSize(11);
       document.setTextColor(91, 107, 127);
-      document.text(`Turma: ${report.class.name}`, margin, 62);
-      document.text(`Aulas ${weekdayPhrases[report.class.lessonWeekday] || 'aos domingos'}  ·  Início: ${formatDate(report.class.startDate)}`, margin, 68);
+      document.text(`Turma: ${report.class.name}`, margin, 65);
+      document.text(`Aulas ${weekdayPhrases[report.class.lessonWeekday] || 'aos domingos'}  ·  Início: ${formatDate(report.class.startDate)}`, margin, 72);
       autoTable(document, {
-        startY: 75,
-        margin: { left: margin, right: margin, bottom: 18 },
+        startY: 78,
+        margin: { left: margin, right: margin, bottom: 16 },
         head: [['Data', 'Título da aula', 'Professor']],
         body: report.lessons.map((lesson) => [
           (() => { const value = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${lesson.date}T12:00:00Z`)); return `${value.charAt(0).toLocaleUpperCase('pt-BR')}${value.slice(1)}`; })(),
@@ -482,9 +482,9 @@ function App() {
           lesson.teacher,
         ]),
         theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 8, cellPadding: 3, overflow: 'linebreak', textColor: [52, 64, 84], lineColor: [229, 233, 239] },
-        headStyles: { fillColor: [38, 58, 87], textColor: [255, 255, 255], fontStyle: 'bold' },
-        columnStyles: { 0: { cellWidth: 48 }, 1: { cellWidth: 78 }, 2: { cellWidth: 'auto' } },
+        styles: { font: 'helvetica', fontSize: 10.5, cellPadding: 4, overflow: 'linebreak', textColor: [52, 64, 84], lineColor: [229, 233, 239] },
+        headStyles: { fillColor: [38, 58, 87], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 11.5 },
+        columnStyles: { 0: { cellWidth: 67 }, 1: { cellWidth: 112 }, 2: { cellWidth: 'auto' } },
       });
       const pageCount = document.getNumberOfPages();
       for (let page = 1; page <= pageCount; page += 1) {
