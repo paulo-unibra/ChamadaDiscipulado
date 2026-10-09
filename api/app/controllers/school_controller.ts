@@ -279,6 +279,8 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
     attendanceEntriesRows,
     newConvertsRows,
     scheduleRows,
+    cycleRows,
+    lessonCatalogRows,
   ] = await Promise.all([
     db.from('congregations').select('*').orderBy('name', 'asc'),
     db
@@ -322,6 +324,8 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
       .orderBy('conversion_date', 'desc')
       .orderBy('created_at', 'desc'),
     db.from('discipleship_schedule').select('*').where('congregation_id', congregationId).orderBy('lesson_date', 'asc'),
+    db.from('discipleship_cycles').select('*').orderBy('position', 'asc'),
+    db.from('discipleship_lessons').select('*').orderBy('position', 'asc'),
   ])
 
   const classStudentsByClassId = classStudentsRows.reduce<Record<string, string[]>>((acc, row) => {
@@ -447,6 +451,21 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
     createdAt: row.created_at,
   }))
 
+  const cycleByLessonTitle = new Map<string, any>()
+  for (const lesson of lessonCatalogRows) {
+    const cycle = cycleRows.find((item) => String(item.id) === String(lesson.cycle_id))
+    if (cycle) cycleByLessonTitle.set(String(lesson.title), cycle)
+  }
+  const discipleshipCycles = cycleRows.map((cycle) => ({
+    id: String(cycle.id),
+    name: cycle.name,
+    color: cycle.color,
+    position: Number(cycle.position),
+    lessons: lessonCatalogRows
+      .filter((lesson) => String(lesson.cycle_id) === String(cycle.id))
+      .map((lesson) => ({ id: String(lesson.id), title: lesson.title, position: Number(lesson.position) })),
+  }))
+
   return {
     congregations: congregationsRows.map((row) => ({
       id: String(row.id),
@@ -459,7 +478,8 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
     })),
     activeCongregationId: congregationId,
     classes,
-    discipleshipLessons: [...DISCIPLESHIP_LESSONS],
+    discipleshipLessons: lessonCatalogRows.map((row) => row.title),
+    discipleshipCycles,
     students,
     teachers,
     attendanceRecords,
@@ -471,6 +491,11 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
       title: row.title,
       teacherId: row.teacher_id ? String(row.teacher_id) : '',
       justification: row.justification ?? '',
+      ...(cycleByLessonTitle.has(String(row.title)) ? {
+        cycleId: String(cycleByLessonTitle.get(String(row.title)).id),
+        cycleName: cycleByLessonTitle.get(String(row.title)).name,
+        cycleColor: cycleByLessonTitle.get(String(row.title)).color,
+      } : {}),
     })),
   }
 }
@@ -908,17 +933,20 @@ export default class SchoolController {
       .first()
     if (!classRow) return response.notFound({ message: 'Turma não encontrada nesta congregação.' })
 
-    const [congregation, lessonRows] = await Promise.all([
+    const [congregation, lessonRows, cycleRows] = await Promise.all([
       db.from('congregations')
         .select('id', 'name', 'area', 'sector', 'logo_data', 'justification_contact')
         .where('id', congregationId)
         .first(),
       db.from('discipleship_schedule as schedule')
         .leftJoin('teachers as teacher', 'teacher.id', 'schedule.teacher_id')
-        .select('schedule.lesson_date', 'schedule.title', 'schedule.justification', 'teacher.name as teacher_name')
+        .leftJoin('discipleship_lessons as catalog', 'catalog.title', 'schedule.title')
+        .leftJoin('discipleship_cycles as cycle', 'cycle.id', 'catalog.cycle_id')
+        .select('schedule.lesson_date', 'schedule.title', 'schedule.justification', 'teacher.name as teacher_name', 'cycle.id as cycle_id', 'cycle.name as cycle_name', 'cycle.color as cycle_color')
         .where('schedule.class_id', params.id)
         .where('schedule.congregation_id', congregationId)
         .orderBy('schedule.lesson_date', 'asc'),
+      db.from('discipleship_cycles').select('id', 'name', 'color', 'position').orderBy('position', 'asc'),
     ])
 
     return response.ok({
@@ -935,11 +963,15 @@ export default class SchoolController {
         startDate: normalizeDateForClient(classRow.start_date),
         lessonWeekday: Number(classRow.lesson_weekday ?? 0),
       },
+      cycles: cycleRows.map((cycle) => ({ id: String(cycle.id), name: cycle.name, color: cycle.color, position: Number(cycle.position) })),
       lessons: lessonRows.map((lesson) => ({
         date: normalizeDateForClient(lesson.lesson_date),
         title: lesson.title,
         teacher: lesson.teacher_name || 'A definir',
         justification: lesson.justification || '',
+        cycleId: lesson.cycle_id ? String(lesson.cycle_id) : '',
+        cycleName: lesson.cycle_name || 'Sem ciclo',
+        cycleColor: lesson.cycle_color || '#64748B',
       })),
     })
   }
