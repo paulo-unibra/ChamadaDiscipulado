@@ -861,31 +861,22 @@ function App() {
         {page === 'escala' && <>
           <section className="panel scale-panel"><div className="panel-heading"><div><h2>Escala · {currentDiscipleshipClass?.name || 'Turma atual'}</h2><p>Aulas {weekdayPhrases[Number(currentDiscipleshipClass?.lessonWeekday ?? 0)]}, às {currentDiscipleshipClass?.lessonTime || '09:00'}; início em {formatDate(currentDiscipleshipClass?.startDate)}.</p></div><div className="scale-actions">{data.classes.length > 1 && <label className="field scale-class-picker">Turma<select value={currentDiscipleshipClass?.id || ''} onChange={(event) => { const id = event.target.value; setScaleClassId(id); localStorage.setItem(`campanha-escala-turma:${activeCongregationId}`, id); setEditingScale(null); setEditingClassStart(null); }} aria-label="Selecionar turma para a escala">{data.classes.map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></label>}<button className="button secondary" onClick={() => currentDiscipleshipClass && setEditingClassStart({ id: currentDiscipleshipClass.id, name: currentDiscipleshipClass.name, startDate: currentDiscipleshipClass.startDate, lessonWeekday: Number(currentDiscipleshipClass.lessonWeekday ?? 0), lessonTime: currentDiscipleshipClass.lessonTime || '09:00' })} disabled={!currentDiscipleshipClass}><Pencil size={16}/> Alterar início/dia/horário</button><button className="button secondary" onClick={exportScale} disabled={!classSchedule.length || scaleExporting}><FileText size={16}/>{scaleExporting ? 'Gerando PDF…' : 'Exportar PDF'}</button></div></div>
             {!currentDiscipleshipClass ? <Empty message="Nenhuma turma cadastrada" detail="Cadastre uma turma para montar a escala de aulas."/> : !classSchedule.length ? <div className="scale-empty"><CalendarDays size={30}/><b>Preparando as 22 aulas da turma</b><span>A sequência começa em Introdução ao Discipulado e termina em Evangelismo. Datas e professores ficam disponíveis para edição.</span></div> : <>
-              <div className="scale-calendar no-print">
-                {scaleMonths.map((month) => {
-                  const year = month.getUTCFullYear();
-                  const monthIndex = month.getUTCMonth();
-                  const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-                  const offset = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay();
-                  const days = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
-                  const totalCells = Math.ceil((offset + days) / 7) * 7;
-                  return <article className="scale-month" key={monthKey}>
-                    <h3>{new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(month)}</h3>
-                    <div className="scale-calendar-grid">
-                      {weekdays.map((weekday) => <span className="scale-weekday" key={weekday}>{weekday.slice(0, 3)}</span>)}
-                      {Array.from({ length: totalCells }, (_, cellIndex) => {
-                        const day = cellIndex - offset + 1;
-                        if (day < 1 || day > days) return <span className="scale-day empty" key={`${monthKey}-empty-${cellIndex}`}/>;
-                        const date = `${monthKey}-${String(day).padStart(2, '0')}`;
-                        const lesson = classSchedule.find((item) => item.date === date);
-                        const teacherName = data.teachers.find((teacher) => teacher.id === lesson?.teacherId)?.name || 'A definir';
-                        const lessonStyle = lesson?.cycleColor ? { borderColor: lesson.cycleColor, backgroundColor: `${lesson.cycleColor}18` } : undefined;
-                        const dayContent = <><span className="scale-day-number">{day}</span>{lesson && <span className="scale-day-lesson"><b>{lesson.title}</b><small>{teacherName}</small><small className="scale-day-time">{lesson.time || currentDiscipleshipClass.lessonTime || '09:00'}</small>{lesson.justification && <small className="scale-day-reason">Justificativa registrada</small>}</span>}</>;
-                        return lesson ? <div className="scale-day has-lesson" key={date} style={lessonStyle} title={lesson.cycleName ? `Ciclo: ${lesson.cycleName}` : 'Aula do discipulado'}><button className="scale-day-content" onClick={() => setEditingScale({ ...lesson, originalDate: lesson.date, defaultTime: currentDiscipleshipClass.lessonTime || '09:00', timeOverride: lesson.timeOverride || '' })} aria-label={`Editar ${formatDate(date)}: ${lesson.title}`}>{dayContent}</button><button className="scale-message-action" onClick={() => prepareScaleMessage(lesson)} aria-label={`Montar mensagem para ${teacherName}`} title="Montar mensagem para o professor"><MessageCircle size={13}/></button></div> : <span className={`scale-day ${new Date(`${date}T12:00:00Z`).getUTCDay() === Number(currentDiscipleshipClass.lessonWeekday ?? 0) ? 'sunday' : ''}`} key={date}>{dayContent}</span>;
-                      })}
-                    </div>
+              <div className="scale-overview no-print">
+                <div className="scale-cycle-legend">{data.discipleshipCycles.map((cycle) => <span className={`scale-cycle-chip scale-cycle-${cycle.position}`} key={cycle.id}><i/>{cycle.name}<small>· {cycle.lessons.length} aulas</small></span>)}</div>
+                <div className="scale-lesson-grid">{classSchedule.map((lesson, index) => {
+                  const cycle = data.discipleshipCycles.find((item) => item.id === lesson.cycleId) || data.discipleshipCycles.find((item) => item.name === lesson.cycleName);
+                  const cyclePosition = cycle?.position || 1;
+                  const teacherName = data.teachers.find((teacher) => teacher.id === lesson.teacherId)?.name || 'Professor a definir';
+                  return <article className={`scale-lesson-card scale-cycle-${cyclePosition}`} key={lesson.id}>
+                    <button className="scale-lesson-edit" onClick={() => setEditingScale({ ...lesson, originalDate: lesson.date, defaultTime: currentDiscipleshipClass.lessonTime || '09:00', timeOverride: lesson.timeOverride || '' })} aria-label={`Editar aula ${index + 1}: ${lesson.title}`}>
+                      <span className="scale-lesson-card-top"><b>{String(index + 1).padStart(2, '0')}</b><span>{cycle?.name || 'Ciclo básico'}</span></span>
+                      <strong>{lesson.title}</strong>
+                      <span className="scale-lesson-meta"><span><CalendarDays size={14}/>{lesson.date ? formatDate(lesson.date) : 'Data a definir'}{lesson.time ? ` · ${lesson.time}` : ''}</span><span><Users size={14}/>{teacherName}</span></span>
+                    </button>
+                    {lesson.justification && <small className="scale-lesson-justification">Justificativa registrada</small>}
+                    <button className="scale-message-action" onClick={() => prepareScaleMessage(lesson)} aria-label={`Montar mensagem para ${teacherName}`} title="Montar mensagem para o professor"><MessageCircle size={14}/></button>
                   </article>;
-                })}
+                })}</div>
               </div>
               <div className="table-wrap scale-print-list"><table className="scale-table"><thead><tr><th>Data</th><th>Título da aula</th><th>Professor</th><th>Justificativa de alteração</th></tr></thead><tbody>{classSchedule.map((lesson) => <tr key={lesson.id}><td><b>{new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${lesson.date}T12:00:00Z`))}</b></td><td>{lesson.title}</td><td>{data.teachers.find((teacher) => teacher.id === lesson.teacherId)?.name || 'A definir'}</td><td>{lesson.justification || '—'}</td></tr>)}</tbody></table></div>
             </>}
