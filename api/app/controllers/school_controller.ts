@@ -252,6 +252,20 @@ function isValidIsoDate(value: string) {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
+function nearestSundayDate() {
+  const now = new Date()
+  const daysSinceSunday = now.getDay()
+  const daysUntilSunday = (7 - daysSinceSunday) % 7
+  const offset = daysSinceSunday < daysUntilSunday ? -daysSinceSunday : daysUntilSunday
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + offset)).toISOString().slice(0, 10)
+}
+
+function addDaysToIsoDate(value: string, days: number) {
+  const date = new Date(`${value}T12:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
 async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
   const [
     congregationsRows,
@@ -372,8 +386,12 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
     .map((row) => ({
       id: String(row.id),
       name: row.name,
-      description: row.description ?? '',
-      studentIds: classStudentsByClassId[String(row.id)] ?? [],
+       description: row.description ?? '',
+       startDate: normalizeDateForClient(row.start_date) ||
+         scheduleRows.filter((lesson) => String(lesson.class_id) === String(row.id)).map((lesson) => normalizeDateForClient(lesson.lesson_date)).sort()[0] ||
+         attendanceRows.filter((lesson) => String(lesson.class_id) === String(row.id)).map((lesson) => normalizeDateForClient(lesson.date)).sort()[0] ||
+         nearestSundayDate(),
+       studentIds: classStudentsByClassId[String(row.id)] ?? [],
       createdAt: row.created_at,
       lessonNames: [...DISCIPLESHIP_LESSONS],
     }))
@@ -433,6 +451,7 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
       name: row.name,
       area: row.area ?? '',
       sector: row.sector ?? '',
+      logoData: row.logo_data ?? '',
       createdAt: row.created_at,
     })),
     activeCongregationId: congregationId,
@@ -520,6 +539,23 @@ export default class SchoolController {
       details: { name, area, sector },
     })
     return response.ok(await getState(congregationId))
+  }
+
+  async updateCongregation({ request, params, response }: HttpContext) {
+    const name = safeString(request.input('name'))
+    const area = safeString(request.input('area'))
+    const sector = safeString(request.input('sector'))
+    const logoData = safeString(request.input('logoData'))
+    const congregationId = String(params.id)
+    const existing = await db.from('congregations').where('id', congregationId).first()
+    if (!existing) return response.notFound({ message: 'Congregação não encontrada.' })
+    if (!name) return response.badRequest({ message: 'O nome da congregação é obrigatório.' })
+    if (logoData && (logoData.length > 1_800_000 || !/^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/]+=*$/.test(logoData))) {
+      return response.badRequest({ message: 'A logo deve ser uma imagem PNG, JPEG ou WebP de até 1,8 MB após a compressão.' })
+    }
+    await db.from('congregations').where('id', congregationId).update({ name, area, sector, logo_data: logoData || null, updated_at: new Date() })
+    await writeAuditLog(db, request, { action: 'congregation.update', entityType: 'congregation', entityId: congregationId, details: { name, area, sector, hasLogo: Boolean(logoData) } })
+    return response.ok(await getState(getCongregationId(request)))
   }
 
   async createNewConvert({ request, response }: HttpContext) {
@@ -687,10 +723,15 @@ export default class SchoolController {
   async createClass({ request, response }: HttpContext) {
     const name = safeString(request.input('name'))
     const description = safeString(request.input('description'))
+    const requestedStartDate = safeString(request.input('startDate'))
+    const startDate = requestedStartDate || nearestSundayDate()
     const congregationId = getCongregationId(request)
 
     if (!name) {
       return response.badRequest({ message: 'Nome da turma eh obrigatorio.' })
+    }
+    if (!isValidIsoDate(startDate) || new Date(`${startDate}T12:00:00Z`).getUTCDay() !== 0) {
+      return response.badRequest({ message: 'A data de início da turma deve ser um domingo válido.' })
     }
     if (!(await hasCongregation(congregationId))) {
       return response.badRequest({ message: 'A congregação selecionada não existe.' })
@@ -701,6 +742,7 @@ export default class SchoolController {
       id: classId,
       name,
       description: description || null,
+      start_date: startDate,
       congregation_id: congregationId,
     })
 
@@ -711,6 +753,34 @@ export default class SchoolController {
       details: { name, description },
     })
     return response.ok(await getState(getCongregationId(request)))
+  }
+
+  async updateClassStartDate({ request, params, response }: HttpContext) {
+    const congregationId = getCongregationId(request)
+    const startDate = safeString(request.input('startDate'))
+    const classRow = await db.from('classes').where('id', params.id).where('congregation_id', congregationId).whereNull('deleted_at').first()
+    if (!classRow) return response.notFound({ message: 'Turma não encontrada nesta congregação.' })
+    if (!isValidIsoDate(startDate) || new Date(`${startDate}T12:00:00Z`).getUTCDay() !== 0) {
+      return response.badRequest({ message: 'A data de início da turma deve ser um domingo válido.' })
+    }
+    const previousStartDate = normalizeDateForClient(classRow.start_date) || startDate
+    const previousTime = new Date(`${previousStartDate}T00:00:00Z`).getTime()
+    const nextTime = new Date(`${startDate}T00:00:00Z`).getTime()
+    const dayShift = Math.round((nextTime - previousTime) / 86_400_000)
+    await db.transaction(async (trx) => {
+      await trx.from('classes').where('id', params.id).where('congregation_id', congregationId).update({ start_date: startDate, updated_at: new Date() })
+      if (dayShift) {
+        const scheduleRows = await trx.from('discipleship_schedule').select('id', 'lesson_date').where('class_id', params.id).where('congregation_id', congregationId)
+        for (const lesson of scheduleRows) {
+          await trx.from('discipleship_schedule').where('id', lesson.id).update({ lesson_date: addDaysToIsoDate(normalizeDateForClient(lesson.lesson_date), 10_000) })
+        }
+        for (const lesson of scheduleRows) {
+          await trx.from('discipleship_schedule').where('id', lesson.id).update({ lesson_date: addDaysToIsoDate(normalizeDateForClient(lesson.lesson_date), dayShift), updated_at: new Date() })
+        }
+      }
+    })
+    await writeAuditLog(db, request, { action: 'class.start_date.update', entityType: 'class', entityId: String(params.id), details: { previousStartDate, startDate, dayShift } })
+    return response.ok(await getState(congregationId))
   }
 
   async deleteClass({ request, params, response }: HttpContext) {

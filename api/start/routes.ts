@@ -37,6 +37,7 @@ router
     router.post('/integrations/google/forms/mark-sent', [IntegrationsController, 'markSent'])
     router.get('/school/state', [SchoolController, 'state'])
     router.post('/school/congregations', [SchoolController, 'createCongregation'])
+    router.put('/school/congregations/:id', [SchoolController, 'updateCongregation'])
     router.post('/school/new-converts', [SchoolController, 'createNewConvert'])
     router.put('/school/new-converts/:id', [SchoolController, 'updateNewConvert'])
     router.delete('/school/new-converts/:id', [SchoolController, 'deleteNewConvert'])
@@ -45,6 +46,7 @@ router
     router.post('/school/classes', [SchoolController, 'createClass'])
     router.delete('/school/classes/:id', [SchoolController, 'deleteClass'])
     router.put('/school/classes/:id/scale', [SchoolController, 'saveClassScale'])
+    router.put('/school/classes/:id/start-date', [SchoolController, 'updateClassStartDate'])
 
     router.post('/school/students', [SchoolController, 'createStudent'])
     router.delete('/school/students/:id', [SchoolController, 'deleteStudent'])
