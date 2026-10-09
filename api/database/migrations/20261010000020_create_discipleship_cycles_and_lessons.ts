@@ -34,11 +34,11 @@ const lessons = [
 
 export default class extends BaseSchema {
   private async hasTable(tableName: string) {
-    return Boolean(await db.from('information_schema.TABLES')
-      .select('TABLE_NAME')
-      .where('TABLE_SCHEMA', db.raw('DATABASE()'))
-      .where('TABLE_NAME', tableName)
-      .first())
+    const result: any = await db.rawQuery(
+      `SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${tableName}' LIMIT 1`
+    )
+    const rows = Array.isArray(result?.[0]) ? result[0] : Array.isArray(result?.rows) ? result.rows : Array.isArray(result) ? result : []
+    return rows.length > 0
   }
 
   async up() {
