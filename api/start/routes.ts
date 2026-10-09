@@ -38,6 +38,7 @@ router
     router.get('/school/state', [SchoolController, 'state'])
     router.post('/school/congregations', [SchoolController, 'createCongregation'])
     router.post('/school/new-converts', [SchoolController, 'createNewConvert'])
+    router.put('/school/new-converts/:id', [SchoolController, 'updateNewConvert'])
     router.delete('/school/new-converts/:id', [SchoolController, 'deleteNewConvert'])
     router.get('/school/audit-logs', [SchoolController, 'auditLogs'])
 

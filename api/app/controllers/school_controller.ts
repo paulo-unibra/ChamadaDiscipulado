@@ -571,6 +571,68 @@ export default class SchoolController {
     return response.ok(await getState(congregationId))
   }
 
+  async updateNewConvert({ request, params, response }: HttpContext) {
+    const payload = request.body() as NewConvertPayload
+    const congregationId = getCongregationId(request)
+    const eventName = safeString(payload.eventName)
+    const name = safeString(payload.name)
+    const conversionDate = safeString(payload.conversionDate)
+    const birthDate = safeString(payload.birthDate)
+    const cep = safeString(payload.cep).replace(/\D/g, '')
+
+    if (!name || !eventName || !conversionDate) {
+      return response.badRequest({ message: 'Atividade, nome e data da conversão são obrigatórios.' })
+    }
+    if (!CONVERSION_EVENTS.includes(eventName as (typeof CONVERSION_EVENTS)[number])) {
+      return response.badRequest({ message: 'Selecione uma atividade válida.' })
+    }
+    if (!isValidIsoDate(conversionDate) || (birthDate && !isValidIsoDate(birthDate))) {
+      return response.badRequest({ message: 'Informe datas válidas para conversão e nascimento.' })
+    }
+    if (birthDate && birthDate > conversionDate) {
+      return response.badRequest({ message: 'A data de nascimento não pode ser posterior à conversão.' })
+    }
+    if (cep && cep.length !== 8) return response.badRequest({ message: 'O CEP deve conter 8 dígitos.' })
+
+    const existing = await db.from('new_converts')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .whereNull('deleted_at')
+      .first()
+    if (!existing) return response.notFound({ message: 'Cadastro não encontrado nesta congregação.' })
+
+    await db.from('new_converts')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .update({
+        event_name: eventName,
+        name,
+        conversion_date: conversionDate,
+        cep: cep || null,
+        street: safeString(payload.street) || null,
+        number: safeString(payload.number) || null,
+        complement: safeString(payload.complement) || null,
+        neighborhood: safeString(payload.neighborhood) || null,
+        city: safeString(payload.city) || null,
+        state: safeString(payload.state).toUpperCase().slice(0, 2) || null,
+        birth_date: birthDate || null,
+        contact_phone: safeString(payload.contactPhone) || null,
+        updated_at: new Date(),
+      })
+    await db.from('google_forms_sent_items')
+      .where('congregation_id', congregationId)
+      .where('section_id', 'new-converts')
+      .where('record_id', params.id)
+      .delete()
+    await writeAuditLog(db, request, {
+      action: 'new_convert.update',
+      entityType: 'new_convert',
+      entityId: params.id,
+      details: { name, eventName, conversionDate },
+    })
+    return response.ok(await getState(congregationId))
+  }
+
   async deleteNewConvert({ request, params, response }: HttpContext) {
     const congregationId = getCongregationId(request)
     const existing = await db
