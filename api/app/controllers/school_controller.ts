@@ -474,6 +474,7 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
       sector: row.sector ?? '',
       logoData: row.logo_data ?? '',
       justificationContact: row.justification_contact ?? '',
+      scaleMessageTemplate: row.scale_message_template ?? '',
       createdAt: row.created_at,
     })),
     activeCongregationId: congregationId,
@@ -575,6 +576,7 @@ export default class SchoolController {
     const area = safeString(request.input('area'))
     const sector = safeString(request.input('sector'))
     const justificationContact = safeString(request.input('justificationContact')).replace(/\D/g, '')
+    const scaleMessageTemplate = typeof request.input('scaleMessageTemplate') === 'string' ? request.input('scaleMessageTemplate') as string : ''
     const logoData = safeString(request.input('logoData'))
     const congregationId = String(params.id)
     const existing = await db.from('congregations').where('id', congregationId).first()
@@ -583,11 +585,12 @@ export default class SchoolController {
     if (justificationContact && ![10, 11].includes(justificationContact.length)) {
       return response.badRequest({ message: 'Informe o DDD e um telefone com 10 ou 11 dígitos para o contato de justificativas.' })
     }
+    if (scaleMessageTemplate.length > 5000) return response.badRequest({ message: 'A mensagem da escala deve ter no máximo 5.000 caracteres.' })
     if (logoData && (logoData.length > 1_800_000 || !/^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/]+=*$/.test(logoData))) {
       return response.badRequest({ message: 'A logo deve ser uma imagem PNG, JPEG ou WebP de até 1,8 MB após a compressão.' })
     }
-    await db.from('congregations').where('id', congregationId).update({ name, area, sector, logo_data: logoData || null, justification_contact: justificationContact || null, updated_at: new Date() })
-    await writeAuditLog(db, request, { action: 'congregation.update', entityType: 'congregation', entityId: congregationId, details: { name, area, sector, hasLogo: Boolean(logoData), hasJustificationContact: Boolean(justificationContact) } })
+    await db.from('congregations').where('id', congregationId).update({ name, area, sector, logo_data: logoData || null, justification_contact: justificationContact || null, scale_message_template: scaleMessageTemplate || null, updated_at: new Date() })
+    await writeAuditLog(db, request, { action: 'congregation.update', entityType: 'congregation', entityId: congregationId, details: { name, area, sector, hasLogo: Boolean(logoData), hasJustificationContact: Boolean(justificationContact), hasScaleMessageTemplate: Boolean(scaleMessageTemplate) } })
     return response.ok(await getState(getCongregationId(request)))
   }
 
