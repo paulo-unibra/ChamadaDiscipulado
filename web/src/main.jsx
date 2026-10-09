@@ -489,10 +489,14 @@ function App() {
       const abbreviatedMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       const cycleRgb = (hex) => { const value = String(hex || '').replace('#', ''); return /^[0-9a-fA-F]{6}$/.test(value) ? [0, 2, 4].map((index) => parseInt(value.slice(index, index + 2), 16)) : [100, 116, 139]; };
       const cycles = report.cycles?.length ? report.cycles : [{ id: 'uncategorized', name: 'Aulas do discipulado', color: '#64748B', position: 1 }];
-      let tableY = 78;
+      let tableY = 85;
       for (const cycle of cycles) {
         const cycleLessons = report.lessons.filter((lesson) => lesson.cycleId === cycle.id);
         if (!cycleLessons.length) continue;
+        if (cycle.position === 3) {
+          document.addPage();
+          tableY = 20;
+        }
         if (tableY + 18 > pageHeight - 28) {
           document.addPage();
           tableY = 20;
@@ -508,6 +512,7 @@ function App() {
         autoTable(document, {
           startY: tableY + 6,
           margin: { left: margin, right: margin, bottom: 30 },
+          pageBreak: cycle.position === 3 ? 'avoid' : 'auto',
           head: [['Data', 'Título da aula', 'Professor']],
           body: cycleLessons.map((lesson) => [
             (() => { const date = new Date(`${lesson.date}T12:00:00Z`), weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', timeZone: 'UTC' }).format(date); return `${weekday.charAt(0).toLocaleUpperCase('pt-BR')}${weekday.slice(1)}, ${String(date.getUTCDate()).padStart(2, '0')} de ${abbreviatedMonths[date.getUTCMonth()]} de ${date.getUTCFullYear()}`; })(),
@@ -519,7 +524,7 @@ function App() {
           headStyles: { fillColor: cycleColor, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 11.5 },
           columnStyles: { 0: { cellWidth: 67 }, 1: { cellWidth: 112 }, 2: { cellWidth: 'auto' } },
         });
-        tableY = (document.lastAutoTable?.finalY || tableY) + 9;
+        tableY = (document.lastAutoTable?.finalY || tableY) + 14;
       }
       if (whatsappUrl) {
         let contactY = (document.lastAutoTable?.finalY || 78) + 12;
