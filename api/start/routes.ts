@@ -55,6 +55,7 @@ router
     router.post('/school/students/remove', [SchoolController, 'removeStudentFromClass'])
 
     router.post('/school/teachers', [SchoolController, 'createTeacher'])
+    router.put('/school/teachers/:id', [SchoolController, 'updateTeacher'])
     router.delete('/school/teachers/:id', [SchoolController, 'deleteTeacher'])
 
     router.post('/school/attendance', [SchoolController, 'saveAttendance'])

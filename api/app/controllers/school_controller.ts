@@ -252,6 +252,10 @@ function isValidIsoDate(value: string) {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
+function isValidLessonTime(value: string) {
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)
+}
+
 function nearestWeekdayDate(weekday: number) {
   const now = new Date()
   const daysSince = now.getDay()
@@ -398,7 +402,8 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
          nearestWeekdayDate(Number(row.lesson_weekday ?? 0)),
        lessonWeekday: Number(row.lesson_weekday ?? 0),
        studentIds: classStudentsByClassId[String(row.id)] ?? [],
-      createdAt: row.created_at,
+       lessonTime: safeString(String(row.lesson_time ?? '09:00')) || '09:00',
+       createdAt: row.created_at,
       lessonNames: [...DISCIPLESHIP_LESSONS],
     }))
 
@@ -419,6 +424,7 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
     id: String(row.id),
     name: row.name,
     phone: row.phone ?? '',
+    gender: row.gender === 'female' ? 'female' : 'male',
     createdAt: row.created_at,
   }))
 
@@ -492,6 +498,8 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
       title: row.title,
       teacherId: row.teacher_id ? String(row.teacher_id) : '',
       justification: row.justification ?? '',
+      timeOverride: row.lesson_time ?? '',
+      time: row.lesson_time || classes.find((group) => group.id === String(row.class_id))?.lessonTime || '09:00',
       ...(cycleByLessonTitle.has(String(row.title)) ? {
         cycleId: String(cycleByLessonTitle.get(String(row.title)).id),
         cycleName: cycleByLessonTitle.get(String(row.title)).name,
@@ -762,6 +770,7 @@ export default class SchoolController {
     const requestedStartDate = safeString(request.input('startDate'))
     const requestedWeekday = request.input('weekday')
     const lessonWeekday = requestedWeekday === undefined || requestedWeekday === null || requestedWeekday === '' ? 0 : Number(requestedWeekday)
+    const lessonTime = safeString(request.input('lessonTime')) || '09:00'
     const startDate = requestedStartDate || nearestWeekdayDate(lessonWeekday)
     const congregationId = getCongregationId(request)
 
@@ -771,6 +780,7 @@ export default class SchoolController {
     if (!Number.isInteger(lessonWeekday) || lessonWeekday < 0 || lessonWeekday > 6) {
       return response.badRequest({ message: 'Selecione um dia da semana válido para a turma.' })
     }
+    if (!isValidLessonTime(lessonTime)) return response.badRequest({ message: 'Informe um horário válido para as aulas da turma.' })
     if (!isValidIsoDate(startDate) || new Date(`${startDate}T12:00:00Z`).getUTCDay() !== lessonWeekday) {
       return response.badRequest({ message: 'A data de início deve corresponder ao dia semanal escolhido para a turma.' })
     }
@@ -785,6 +795,7 @@ export default class SchoolController {
       description: description || null,
       start_date: startDate,
       lesson_weekday: lessonWeekday,
+      lesson_time: lessonTime,
       congregation_id: congregationId,
     })
 
@@ -804,18 +815,21 @@ export default class SchoolController {
     if (!classRow) return response.notFound({ message: 'Turma não encontrada nesta congregação.' })
     const requestedWeekday = request.input('weekday')
     const lessonWeekday = requestedWeekday === undefined || requestedWeekday === null || requestedWeekday === '' ? Number(classRow.lesson_weekday ?? 0) : Number(requestedWeekday)
+    const requestedLessonTime = request.input('lessonTime')
+    const lessonTime = requestedLessonTime === undefined || requestedLessonTime === null || requestedLessonTime === '' ? String(classRow.lesson_time || '09:00') : safeString(requestedLessonTime)
     if (!Number.isInteger(lessonWeekday) || lessonWeekday < 0 || lessonWeekday > 6) {
       return response.badRequest({ message: 'Selecione um dia da semana válido para a turma.' })
     }
     if (!isValidIsoDate(startDate) || new Date(`${startDate}T12:00:00Z`).getUTCDay() !== lessonWeekday) {
       return response.badRequest({ message: 'A data de início deve corresponder ao dia semanal escolhido para a turma.' })
     }
+    if (!isValidLessonTime(lessonTime)) return response.badRequest({ message: 'Informe um horário válido para as aulas da turma.' })
     const previousStartDate = normalizeDateForClient(classRow.start_date) || startDate
     const previousTime = new Date(`${previousStartDate}T00:00:00Z`).getTime()
     const nextTime = new Date(`${startDate}T00:00:00Z`).getTime()
     const dayShift = Math.round((nextTime - previousTime) / 86_400_000)
     await db.transaction(async (trx) => {
-      await trx.from('classes').where('id', params.id).where('congregation_id', congregationId).update({ start_date: startDate, lesson_weekday: lessonWeekday, updated_at: new Date() })
+      await trx.from('classes').where('id', params.id).where('congregation_id', congregationId).update({ start_date: startDate, lesson_weekday: lessonWeekday, lesson_time: lessonTime, updated_at: new Date() })
       if (dayShift) {
         const scheduleRows = await trx.from('discipleship_schedule').select('id', 'lesson_date').where('class_id', params.id).where('congregation_id', congregationId)
         for (const lesson of scheduleRows) {
@@ -895,6 +909,7 @@ export default class SchoolController {
       title: string
       teacher_id: string | null
       justification: string | null
+      lesson_time: string | null
     }> = []
     const seenDates = new Set<string>()
     for (const lesson of lessons) {
@@ -903,6 +918,7 @@ export default class SchoolController {
       const teacherId = safeString(lesson?.teacherId)
       const lessonId = safeString(lesson?.id)
       const justification = safeString(lesson?.justification)
+      const lessonTime = safeString(lesson?.time)
       const previousDate = lessonId ? existingById.get(lessonId) : undefined
       if (!isValidIsoDate(date) || !title) {
         return response.badRequest({ message: 'Cada aula precisa ter um título e uma data válida.' })
@@ -911,12 +927,13 @@ export default class SchoolController {
       const dateChanged = previousDate !== undefined && previousDate !== date
       const changedWeekday = new Date(`${date}T12:00:00Z`).getUTCDay() !== lessonWeekday
       if ((dateChanged || changedWeekday) && !justification) return response.badRequest({ message: 'Informe uma justificativa ao alterar a data da aula ou transferi-la para outro dia da semana.' })
+      if (lessonTime && !isValidLessonTime(lessonTime)) return response.badRequest({ message: 'Informe um horário válido para a aula.' })
       if (seenDates.has(date)) return response.badRequest({ message: 'Não pode haver mais de uma aula na mesma data.' })
       seenDates.add(date)
       if (teacherId && !(await db.from('teachers').where('id', teacherId).where('congregation_id', congregationId).whereNull('deleted_at').first())) {
         return response.badRequest({ message: 'Selecione um professor válido desta congregação.' })
       }
-      normalized.push({ id: id('schedule'), congregation_id: congregationId, class_id: String(params.id), lesson_date: date, title, teacher_id: teacherId || null, justification: justification || null })
+      normalized.push({ id: id('schedule'), congregation_id: congregationId, class_id: String(params.id), lesson_date: date, title, teacher_id: teacherId || null, justification: justification || null, lesson_time: lessonTime || null })
     }
     await db.transaction(async (trx) => {
       await trx.from('discipleship_schedule').where('class_id', params.id).where('congregation_id', congregationId).delete()
@@ -945,7 +962,7 @@ export default class SchoolController {
         .leftJoin('teachers as teacher', 'teacher.id', 'schedule.teacher_id')
         .leftJoin('discipleship_lessons as catalog', 'catalog.title', 'schedule.title')
         .leftJoin('discipleship_cycles as cycle', 'cycle.id', 'catalog.cycle_id')
-        .select('schedule.lesson_date', 'schedule.title', 'schedule.justification', 'teacher.name as teacher_name', 'cycle.id as cycle_id', 'cycle.name as cycle_name', 'cycle.color as cycle_color')
+        .select('schedule.lesson_date', 'schedule.lesson_time', 'schedule.title', 'schedule.justification', 'teacher.name as teacher_name', 'cycle.id as cycle_id', 'cycle.name as cycle_name', 'cycle.color as cycle_color')
         .where('schedule.class_id', params.id)
         .where('schedule.congregation_id', congregationId)
         .orderBy('schedule.lesson_date', 'asc'),
@@ -965,10 +982,12 @@ export default class SchoolController {
         name: classRow.name,
         startDate: normalizeDateForClient(classRow.start_date),
         lessonWeekday: Number(classRow.lesson_weekday ?? 0),
+        lessonTime: String(classRow.lesson_time || '09:00'),
       },
       cycles: cycleRows.map((cycle) => ({ id: String(cycle.id), name: cycle.name, color: cycle.color, position: Number(cycle.position) })),
       lessons: lessonRows.map((lesson) => ({
         date: normalizeDateForClient(lesson.lesson_date),
+        time: String(lesson.lesson_time || classRow.lesson_time || '09:00'),
         title: lesson.title,
         teacher: lesson.teacher_name || 'A definir',
         justification: lesson.justification || '',
@@ -1157,10 +1176,14 @@ export default class SchoolController {
   async createTeacher({ request, response }: HttpContext) {
     const name = safeString(request.input('name'))
     const phone = safeString(request.input('phone'))
+    const gender = safeString(request.input('gender')) || 'male'
     const congregationId = getCongregationId(request)
 
     if (!name) {
       return response.badRequest({ message: 'Nome do professor eh obrigatorio.' })
+    }
+    if (!['male', 'female'].includes(gender)) {
+      return response.badRequest({ message: 'Selecione se o professor é homem ou mulher.' })
     }
     if (!(await hasCongregation(congregationId))) {
       return response.badRequest({ message: 'A congregação selecionada não existe.' })
@@ -1171,6 +1194,7 @@ export default class SchoolController {
       id: teacherId,
       name,
       phone: phone || null,
+      gender,
       congregation_id: congregationId,
     })
 
@@ -1178,9 +1202,20 @@ export default class SchoolController {
       action: 'teacher.create',
       entityType: 'teacher',
       entityId: teacherId,
-      details: { name },
+      details: { name, gender },
     })
     return response.ok(await getState(getCongregationId(request)))
+  }
+
+  async updateTeacher({ request, params, response }: HttpContext) {
+    const congregationId = getCongregationId(request)
+    const existing = await db.from('teachers').where('id', params.id).where('congregation_id', congregationId).whereNull('deleted_at').first()
+    if (!existing) return response.notFound({ message: 'Professor não encontrado nesta congregação.' })
+    const gender = safeString(request.input('gender'))
+    if (!['male', 'female'].includes(gender)) return response.badRequest({ message: 'Selecione masculino ou feminino.' })
+    await db.from('teachers').where('id', params.id).where('congregation_id', congregationId).update({ gender, updated_at: new Date() })
+    await writeAuditLog(db, request, { action: 'teacher.update_gender', entityType: 'teacher', entityId: String(params.id), details: { gender } })
+    return response.ok(await getState(congregationId))
   }
 
   async deleteTeacher({ request, params, response }: HttpContext) {
