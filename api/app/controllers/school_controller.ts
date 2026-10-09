@@ -1,6 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
-import { submitIntegrationSection, submitNewConvert } from '#services/google_forms_service'
 
 const VALID_STATUSES = ['present', 'absent', 'justified', 'late'] as const
 type AttendanceStatus = (typeof VALID_STATUSES)[number]
@@ -569,24 +568,6 @@ export default class SchoolController {
       entityId: newConvertId,
       details: { name, eventName, conversionDate },
     })
-    try {
-      await submitNewConvert(congregationId, {
-        eventName,
-        name,
-        conversionDate,
-        birthDate,
-        contactPhone: safeString(payload.contactPhone),
-        cep,
-        street: safeString(payload.street),
-        number: safeString(payload.number),
-        complement: safeString(payload.complement),
-        neighborhood: safeString(payload.neighborhood),
-        city: safeString(payload.city),
-        state: safeString(payload.state).toUpperCase().slice(0, 2),
-      })
-    } catch (error) {
-      console.warn('[google-forms] new convert submission failed:', error)
-    }
     return response.ok(await getState(congregationId))
   }
 
@@ -658,12 +639,6 @@ export default class SchoolController {
       entityId: classId,
       details: { name, description },
     })
-    try {
-      await submitIntegrationSection(congregationId, 'classes', { name, description }, { name: 'Nome da turma', description: 'Descrição' })
-    } catch (error) {
-      console.warn('[google-forms] class submission failed:', error)
-    }
-
     return response.ok(await getState(getCongregationId(request)))
   }
 
@@ -770,12 +745,6 @@ export default class SchoolController {
       entityId: studentId,
       details: { name, classIds },
     })
-    try {
-      await submitIntegrationSection(congregationId, 'students', { name }, { name: 'Nome' })
-    } catch (error) {
-      console.warn('[google-forms] student submission failed:', error)
-    }
-
     return response.ok(await getState(getCongregationId(request)))
   }
 
@@ -922,12 +891,6 @@ export default class SchoolController {
       entityId: teacherId,
       details: { name },
     })
-    try {
-      await submitIntegrationSection(congregationId, 'teachers', { name, phone }, { name: 'Nome', phone: 'Telefone' })
-    } catch (error) {
-      console.warn('[google-forms] teacher submission failed:', error)
-    }
-
     return response.ok(await getState(getCongregationId(request)))
   }
 
@@ -1079,11 +1042,6 @@ export default class SchoolController {
       if (normalizedEntries.some((entry) => !validStudentIds.has(entry.student_id))) {
         throw new Error('Os participantes da chamada devem estar vinculados à turma selecionada.')
       }
-      const studentRows = normalizedEntries.length
-        ? await trx.from('students').select('id', 'name').whereIn('id', normalizedEntries.map((entry) => entry.student_id))
-        : []
-      const studentsMap = new Map(studentRows.map((student: any) => [String(student.id), String(student.name)]))
-
       if (normalizedEntries.length > 0) {
         await trx.table('attendance_entries').insert(normalizedEntries)
       }
@@ -1102,23 +1060,6 @@ export default class SchoolController {
       })
 
       await trx.commit()
-      try {
-        const studentNames = normalizedEntries.map((entry) => studentsMap.get(entry.student_id) || '').filter(Boolean).join(', ')
-        const statuses = normalizedEntries.map((entry) => `${studentsMap.get(entry.student_id) || entry.student_id}: ${entry.status}`).join(', ')
-        await submitIntegrationSection(congregationId, 'attendance', {
-          className: classGroup.name,
-          teacherName: validTeachers.map((teacher: any) => teacher.name).join(', '),
-          lessonName,
-          date,
-          studentNames,
-          statuses,
-        }, {
-          className: 'Turma', teacherName: 'Responsável', lessonName: 'Tema do encontro', date: 'Data',
-          studentNames: 'Participante', statuses: 'Situação',
-        })
-      } catch (error) {
-        console.warn('[google-forms] attendance submission failed:', error)
-      }
       return response.ok(await getState(getCongregationId(request)))
     } catch (error) {
       await trx.rollback()

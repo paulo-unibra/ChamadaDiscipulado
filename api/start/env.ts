@@ -33,8 +33,4 @@ export default await Env.create(new URL('../', import.meta.url), {
   RESEND_API_KEY: Env.schema.string.optional(),
   RESEND_FROM_EMAIL: Env.schema.string.optional(),
   RESEND_FROM_NAME: Env.schema.string.optional(),
-  GOOGLE_CLIENT_ID: Env.schema.string.optional(),
-  GOOGLE_CLIENT_SECRET: Env.schema.string.optional(),
-  GOOGLE_REDIRECT_URI: Env.schema.string.optional(),
-  WEB_APP_URL: Env.schema.string.optional(),
 })
