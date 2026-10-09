@@ -3,12 +3,11 @@ import db from '@adonisjs/lucid/services/db'
 
 export default class extends BaseSchema {
   private async hasContactColumn() {
-    return Boolean(await db.from('information_schema.COLUMNS')
-      .select('COLUMN_NAME')
-      .where('TABLE_SCHEMA', db.raw('DATABASE()'))
-      .where('TABLE_NAME', 'congregations')
-      .where('COLUMN_NAME', 'justification_contact')
-      .first())
+    const result: any = await db.rawQuery(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'congregations' AND COLUMN_NAME = 'justification_contact' LIMIT 1`
+    )
+    const rows = Array.isArray(result?.[0]) ? result[0] : Array.isArray(result?.rows) ? result.rows : Array.isArray(result) ? result : []
+    return rows.length > 0
   }
 
   async up() {
