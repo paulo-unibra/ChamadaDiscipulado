@@ -496,6 +496,7 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
       classId: String(row.class_id),
       date: normalizeDateForClient(row.lesson_date),
       title: row.title,
+      content: row.content ?? '',
       teacherId: row.teacher_id ? String(row.teacher_id) : '',
       justification: row.justification ?? '',
       timeOverride: row.lesson_time ?? '',
@@ -909,6 +910,7 @@ export default class SchoolController {
       title: string
       teacher_id: string | null
       justification: string | null
+      content: string | null
       lesson_time: string | null
     }> = []
     const seenDates = new Set<string>()
@@ -918,6 +920,7 @@ export default class SchoolController {
       const teacherId = safeString(lesson?.teacherId)
       const lessonId = safeString(lesson?.id)
       const justification = safeString(lesson?.justification)
+      const content = safeString(lesson?.content)
       const lessonTime = safeString(lesson?.time)
       const previousDate = lessonId ? existingById.get(lessonId) : undefined
       if (!isValidIsoDate(date) || !title) {
@@ -928,12 +931,13 @@ export default class SchoolController {
       const changedWeekday = new Date(`${date}T12:00:00Z`).getUTCDay() !== lessonWeekday
       if ((dateChanged || changedWeekday) && !justification) return response.badRequest({ message: 'Informe uma justificativa ao alterar a data da aula ou transferi-la para outro dia da semana.' })
       if (lessonTime && !isValidLessonTime(lessonTime)) return response.badRequest({ message: 'Informe um horário válido para a aula.' })
+      if (content.length > 10000) return response.badRequest({ message: 'O conteúdo da lição deve ter no máximo 10.000 caracteres.' })
       if (seenDates.has(date)) return response.badRequest({ message: 'Não pode haver mais de uma aula na mesma data.' })
       seenDates.add(date)
       if (teacherId && !(await db.from('teachers').where('id', teacherId).where('congregation_id', congregationId).whereNull('deleted_at').first())) {
         return response.badRequest({ message: 'Selecione um professor válido desta congregação.' })
       }
-      normalized.push({ id: id('schedule'), congregation_id: congregationId, class_id: String(params.id), lesson_date: date, title, teacher_id: teacherId || null, justification: justification || null, lesson_time: lessonTime || null })
+      normalized.push({ id: id('schedule'), congregation_id: congregationId, class_id: String(params.id), lesson_date: date, title, teacher_id: teacherId || null, justification: justification || null, content: content || null, lesson_time: lessonTime || null })
     }
     await db.transaction(async (trx) => {
       await trx.from('discipleship_schedule').where('class_id', params.id).where('congregation_id', congregationId).delete()
