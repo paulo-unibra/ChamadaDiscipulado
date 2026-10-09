@@ -19,7 +19,7 @@ const nearestWeekday = (weekday, baseDate = new Date()) => { const date = baseDa
 const isValidIsoDateClient = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime()) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 const weekdays = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const weekdayPhrases = ['aos domingos', 'às segundas-feiras', 'às terças-feiras', 'às quartas-feiras', 'às quintas-feiras', 'às sextas-feiras', 'aos sábados'];
-const cycleTextColor = (color) => String(color || '').toUpperCase() === '#E7E1B1' ? '#0D530E' : color;
+const cycleTextColor = (color) => { const value = String(color || '').replace('#', ''); if (!/^[0-9a-fA-F]{6}$/.test(value)) return color; const rgb = [0, 2, 4].map((index) => parseInt(value.slice(index, index + 2), 16)); return rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114 > 165 ? '#0D530E' : color; };
 const formatDate = (value) => value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value.slice(0, 10)}T12:00:00Z`)) : '—';
 const conversionEvents = [
   'ADESIVAÇO', 'ADOLESCENTES: TESTEMUNHAS', 'Aniversário de Campanha Evangelizadora', 'Aniversário de Conjunto Musical',
@@ -503,7 +503,7 @@ function App() {
           tableY = 20;
         }
         const cycleColor = cycleRgb(cycle.color);
-        const cycleIsLight = cycle.color?.toUpperCase() === '#E7E1B1';
+        const cycleIsLight = cycleColor[0] * 0.299 + cycleColor[1] * 0.587 + cycleColor[2] * 0.114 > 165;
         document.setFont('helvetica', 'bold');
         document.setFontSize(13);
         document.setTextColor(...(cycleIsLight ? [13, 83, 14] : cycleColor));
