@@ -19,7 +19,7 @@ const nearestWeekday = (weekday, baseDate = new Date()) => { const date = baseDa
 const isValidIsoDateClient = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T00:00:00Z`).getTime()) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 const weekdays = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const weekdayPhrases = ['aos domingos', 'às segundas-feiras', 'às terças-feiras', 'às quartas-feiras', 'às quintas-feiras', 'às sextas-feiras', 'aos sábados'];
-const cycleTextColor = () => '#292B27';
+const cycleTextColor = () => '#4E504A';
 const formatDate = (value) => value ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value.slice(0, 10)}T12:00:00Z`)) : '—';
 const conversionEvents = [
   'ADESIVAÇO', 'ADOLESCENTES: TESTEMUNHAS', 'Aniversário de Campanha Evangelizadora', 'Aniversário de Conjunto Musical',
@@ -106,9 +106,9 @@ function TechText({ text = 'React Bits', fontSize = 150, fontWeight = 600, color
         const active = pointer.active && Math.abs(pointer.x - g.x) < Math.max(24, g.width / 2 + 12) && Math.abs(pointer.y - r.height / 2) < 100;
         ctx.save(); ctx.lineWidth = 1.35;
         if (active && reveal !== 'off') { ctx.strokeStyle = color; ctx.setLineDash([dashLength, dashGap]); ctx.strokeText(g.letter, g.x, r.height / 2); }
-        else { ctx.fillStyle = color; ctx.fillText(g.letter, g.x, r.height / 2); }
+        else { ctx.fillStyle = color === '#ffffff' ? '#4E504A' : color; ctx.fillText(g.letter, g.x, r.height / 2); }
         ctx.restore();
-        if (active && specks) { for (let i = 0; i < Math.min(specks, 8); i++) { ctx.fillStyle = accentColor; ctx.globalAlpha = Math.random() * .75; ctx.fillRect(g.x + (Math.random() - .5) * 52, r.height / 2 + (Math.random() - .5) * 62, 2, 2); } ctx.globalAlpha = 1; }
+        if (active && specks) { for (let i = 0; i < Math.min(specks, 8); i++) { ctx.fillStyle = accentColor === '#b7d9ff' ? '#F4C19A' : accentColor; ctx.globalAlpha = Math.random() * .75; ctx.fillRect(g.x + (Math.random() - .5) * 52, r.height / 2 + (Math.random() - .5) * 62, 2, 2); } ctx.globalAlpha = 1; }
       });
       if (pointer.active) frame = requestAnimationFrame(draw);
     };
@@ -465,7 +465,7 @@ function App() {
         document.addImage(logo.data, 'PNG', margin, 12 + (maxLogoHeight - logoHeight) / 2, logoWidth, logoHeight, undefined, 'FAST');
       }
       const identityX = logo ? margin + 37 : margin;
-      document.setTextColor(41, 43, 39);
+      document.setTextColor(78, 80, 74);
       document.setFont('helvetica', 'bold');
       document.setFontSize(16);
       document.text(report.congregation.name || 'Congregação', identityX, 24);
@@ -477,7 +477,7 @@ function App() {
       document.line(margin, 46, pageWidth - margin, 46);
       document.setFont('helvetica', 'bold');
       document.setFontSize(22);
-      document.setTextColor(41, 43, 39);
+      document.setTextColor(78, 80, 74);
       document.text('Escala do Discipulado', margin, 57);
       document.setFont('helvetica', 'normal');
       document.setFontSize(11);
@@ -506,7 +506,7 @@ function App() {
         const cycleIsLight = cycleColor[0] * 0.299 + cycleColor[1] * 0.587 + cycleColor[2] * 0.114 > 165;
         document.setFont('helvetica', 'bold');
         document.setFontSize(13);
-        document.setTextColor(41, 43, 39);
+        document.setTextColor(78, 80, 74);
         document.text(cycle.name, margin, tableY);
         document.setDrawColor(...cycleColor);
         document.setLineWidth(0.6);
@@ -536,12 +536,12 @@ function App() {
         }
         document.setFont('helvetica', 'normal');
         document.setFontSize(13);
-        document.setTextColor(41, 43, 39);
+        document.setTextColor(78, 80, 74);
         document.text('Paz do Senhor! Caso não possa atender à escala,', margin, contactY);
-        document.setTextColor(48, 109, 41);
+        document.setTextColor(78, 80, 74);
         document.textWithLink('clique aqui para avisar pelo WhatsApp.', margin, contactY + 6, { url: whatsappUrl });
         document.setFontSize(11);
-        document.setTextColor(104, 106, 97);
+        document.setTextColor(119, 121, 112);
         document.text(`Contato para justificativas: ${formatBrazilPhone(contactDigits)}`, margin, contactY + 12);
       }
       const pageCount = document.getNumberOfPages();
@@ -549,7 +549,7 @@ function App() {
         document.setPage(page);
         document.setFont('helvetica', 'normal');
         document.setFontSize(8);
-        document.setTextColor(104, 106, 97);
+        document.setTextColor(119, 121, 112);
         document.text(`Página ${page} de ${pageCount}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
       }
       const blob = document.output('blob');

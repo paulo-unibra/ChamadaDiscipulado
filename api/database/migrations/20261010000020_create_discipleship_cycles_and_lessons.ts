@@ -2,9 +2,9 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 import db from '@adonisjs/lucid/services/db'
 
 const cycles = [
-  { id: 'cycle-basic', name: 'Ciclo Básico', color: '#8AD6D1', position: 1 },
-  { id: 'cycle-intermediate', name: 'Ciclo Intermediário', color: '#5AB8BA', position: 2 },
-  { id: 'cycle-advanced', name: 'Ciclo Avançado', color: '#359FA0', position: 3 },
+  { id: 'cycle-basic', name: 'Ciclo Básico', color: '#DFF3F0', position: 1 },
+  { id: 'cycle-intermediate', name: 'Ciclo Intermediário', color: '#B8E2DE', position: 2 },
+  { id: 'cycle-advanced', name: 'Ciclo Avançado', color: '#88CFCB', position: 3 },
 ]
 
 const lessons = [
