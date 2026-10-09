@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Activity, BookOpen, CalendarDays, ChartNoAxesColumn, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, FileText, FolderOpen, LayoutDashboard, LogOut, Menu, Plus, Search, Settings, Users, X, PlugZap, Save, RefreshCw, FileInput, CircleCheck, Pencil, Pin, History, MessageCircle } from 'lucide-react';
+import { Activity, BookOpen, CalendarDays, ChartNoAxesColumn, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, FileText, FolderOpen, LayoutDashboard, LogOut, Menu, Plus, Search, Settings, Users, X, PlugZap, Save, RefreshCw, FileInput, CircleCheck, Pencil, Pin, History, MessageCircle, WandSparkles, ClipboardList, Download, LoaderCircle } from 'lucide-react';
 import './styles.css';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://146.190.138.248:2000';
@@ -148,6 +148,8 @@ function App() {
   const [scaleExporting, setScaleExporting] = useState(false);
   const [integration, setIntegration] = useState({ enabled: false, formId: '', sections: {}, fields: {}, mappings: {}, fixedAnswers: {} });
   const [formQuestions, setFormQuestions] = useState([]), [integrationBusy, setIntegrationBusy] = useState(false), [integrationMessage, setIntegrationMessage] = useState('');
+  const [chatGptApiKey, setChatGptApiKey] = useState(''), [chatGptConfigured, setChatGptConfigured] = useState(false), [chatGptBusy, setChatGptBusy] = useState(false), [chatGptMessage, setChatGptMessage] = useState('');
+  const [quizJobs, setQuizJobs] = useState({}), [quizCountDraft, setQuizCountDraft] = useState(null), [quizGeneratingLessonId, setQuizGeneratingLessonId] = useState(''), [activeQuiz, setActiveQuiz] = useState(null), [quizNotice, setQuizNotice] = useState('');
   const [formSentItems, setFormSentItems] = useState({}), [formOpenedItems, setFormOpenedItems] = useState({});
   const initializedScaleClasses = useRef(new Set());
   const apiFetch = (path, options = {}) => { const separator = path.includes('?') ? '&' : '?'; const scopedPath = `${path}${separator}congregationId=${encodeURIComponent(activeCongregationId)}`; return fetch(`${API}${scopedPath}`, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } }); };
@@ -308,6 +310,59 @@ function App() {
       const result = await response.json();
       setIntegration((current) => ({ ...current, ...result }));
     }).catch((error) => setIntegrationMessage(error.message));
+  }, [token, activeCongregationId]);
+  useEffect(() => {
+    if (!token) return;
+    apiFetch('/integrations/chatgpt').then(async (response) => {
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || 'Não foi possível carregar a integração do ChatGPT.');
+      setChatGptApiKey(result.apiKey || '');
+      setChatGptConfigured(Boolean(result.configured));
+    }).catch((error) => setChatGptMessage(error.message));
+  }, [token, activeCongregationId]);
+  useEffect(() => {
+    if (!token) return undefined;
+    let stopped = false, reconnectTimer;
+    let socket;
+    const mergeQuiz = (quiz) => setQuizJobs((current) => {
+      const existing = current[quiz.scheduleId] || [];
+      return { ...current, [quiz.scheduleId]: [quiz, ...existing.filter((item) => item.id !== quiz.id)] };
+    });
+    const refreshQuizzes = async () => {
+      try {
+        const response = await apiFetch('/school/quizzes');
+        if (!response.ok) return;
+        const result = await response.json();
+        if (stopped) return;
+        setQuizJobs((current) => {
+          const next = { ...current };
+          for (const quiz of result.quizzes || []) next[quiz.scheduleId] = [quiz, ...(next[quiz.scheduleId] || []).filter((item) => item.id !== quiz.id)];
+          return next;
+        });
+      } catch {}
+    };
+    const connect = () => {
+      if (stopped) return;
+      const endpoint = new URL(API);
+      endpoint.protocol = endpoint.protocol === 'https:' ? 'wss:' : 'ws:';
+      endpoint.pathname = `${endpoint.pathname.replace(/\/$/, '')}/ws`;
+      endpoint.searchParams.set('congregationId', activeCongregationId);
+      socket = new WebSocket(endpoint, ['chamada-discipulado', token]);
+      socket.onopen = refreshQuizzes;
+      socket.onmessage = (message) => {
+        try {
+          const event = JSON.parse(message.data);
+          if (event.type === 'quiz.updated' && event.quiz) mergeQuiz(event.quiz);
+          if (event.type === 'quiz.updated' && event.quiz?.status === 'completed') setQuizNotice(`Questionário pronto: ${event.quiz.lessonTitle}.`);
+          if (event.type === 'quiz.updated' && event.quiz?.status === 'failed') setQuizNotice(`Falha ao gerar ${event.quiz.lessonTitle}: ${event.quiz.error}`);
+        } catch {}
+      };
+      socket.onclose = () => { if (!stopped) reconnectTimer = window.setTimeout(connect, 2500); };
+      socket.onerror = () => socket.close();
+    };
+    void refreshQuizzes();
+    connect();
+    return () => { stopped = true; window.clearTimeout(reconnectTimer); socket?.close(); };
   }, [token, activeCongregationId]);
   useEffect(() => {
     if (!token) return;
@@ -631,6 +686,71 @@ function App() {
     } catch (error) { setIntegrationMessage(error.message); }
     finally { setIntegrationBusy(false); }
   };
+  const saveChatGptIntegration = async () => {
+    setChatGptBusy(true); setChatGptMessage('');
+    try {
+      const response = await apiFetch('/integrations/chatgpt', { method: 'PUT', body: JSON.stringify({ apiKey: chatGptApiKey }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || 'Não foi possível salvar o token do ChatGPT.');
+      setChatGptApiKey(result.apiKey || ''); setChatGptConfigured(Boolean(result.configured)); setChatGptMessage(result.configured ? 'Integração do ChatGPT configurada para esta congregação.' : 'Token removido.');
+    } catch (error) { setChatGptMessage(error.message || 'Não foi possível salvar o token do ChatGPT.'); }
+    finally { setChatGptBusy(false); }
+  };
+  const requestQuizGeneration = async () => {
+    if (!quizCountDraft || !currentDiscipleshipClass) return;
+    setQuizGeneratingLessonId(quizCountDraft.id); setQuizNotice('');
+    try {
+      const response = await apiFetch(`/school/classes/${currentDiscipleshipClass.id}/scale/${quizCountDraft.id}/quizzes`, { method: 'POST', body: JSON.stringify({ questionCount: Number(quizCountDraft.questionCount) }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || 'Não foi possível iniciar a geração.');
+      setQuizJobs((current) => ({ ...current, [result.quiz.scheduleId]: [result.quiz, ...(current[result.quiz.scheduleId] || []).filter((item) => item.id !== result.quiz.id)] }));
+      setQuizCountDraft(null); setQuizNotice('A geração começou. O questionário aparecerá nesta lição quando estiver pronto.');
+    } catch (error) { setQuizNotice(error.message || 'Não foi possível iniciar a geração.'); }
+    finally { setQuizGeneratingLessonId(''); }
+  };
+  const exportQuizPdf = async () => {
+    if (!activeQuiz) return;
+    const [{ jsPDF }] = await Promise.all([import('jspdf')]);
+    const document = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageWidth = document.internal.pageSize.getWidth(), pageHeight = document.internal.pageSize.getHeight();
+    const margin = 14, gap = 12, columnWidth = (pageWidth - margin * 2 - gap) / 2;
+    const logo = activeCongregation?.logoData || '';
+    let printLogo = '';
+    if (logo) {
+      try {
+        const image = await new Promise((resolve, reject) => { const source = new Image(); source.onload = () => resolve(source); source.onerror = reject; source.src = logo; });
+        const canvas = window.document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+        canvas.getContext('2d').drawImage(image, 0, 0); printLogo = canvas.toDataURL('image/png');
+      } catch {}
+    }
+    const drawHeader = () => {
+      if (printLogo) document.addImage(printLogo, 'PNG', 14, 9, 20, 20);
+      const textX = printLogo ? 39 : 14;
+      document.setFont('helvetica', 'bold'); document.setFontSize(17); document.setTextColor(18, 47, 33);
+      document.text(activeQuiz.lessonTitle, textX, 17, { maxWidth: pageWidth - textX - margin });
+      document.setFont('helvetica', 'normal'); document.setFontSize(9); document.setTextColor(90, 105, 97);
+      document.text(activeCongregation?.name || 'Campanha Evangelizadora', textX, 23);
+      document.setDrawColor(218, 229, 221); document.line(margin, 31, pageWidth - margin, 31);
+    };
+    const columns = [activeQuiz.questions.slice(0, Math.ceil(activeQuiz.questions.length / 2)), activeQuiz.questions.slice(Math.ceil(activeQuiz.questions.length / 2))];
+    drawHeader();
+    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
+      let x = margin + columnIndex * (columnWidth + gap), y = 39;
+      for (let index = 0; index < columns[columnIndex].length; index += 1) {
+        const question = columns[columnIndex][index];
+        document.setFont('helvetica', 'bold'); document.setFontSize(10.5); document.setTextColor(22, 41, 31);
+        const questionLines = document.splitTextToSize(`${columnIndex === 0 ? index + 1 : columns[0].length + index + 1}. ${question.question}`, columnWidth);
+        const optionLines = question.options.flatMap((option) => document.splitTextToSize(option, columnWidth - 3));
+        const blockHeight = questionLines.length * 5 + optionLines.length * 4.4 + 7;
+        if (y + blockHeight > pageHeight - margin) { document.addPage('a4', 'landscape'); drawHeader(); y = 39; }
+        document.text(questionLines, x, y); y += questionLines.length * 5 + 2;
+        document.setFont('helvetica', 'normal'); document.setFontSize(9); document.setTextColor(57, 69, 62);
+        for (const option of question.options) { const lines = document.splitTextToSize(option, columnWidth - 3); document.text(lines, x + 3, y); y += lines.length * 4.4; }
+        y += 5;
+      }
+    }
+    document.save(`questionario-${activeQuiz.lessonTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.pdf`);
+  };
   const loadFormQuestions = async () => {
     if (!integration.formId.trim()) return setIntegrationMessage('Informe o ID ou link do formulário.');
     setIntegrationBusy(true); setIntegrationMessage('');
@@ -729,11 +849,20 @@ function App() {
       </aside>
       <main className="main-column"><div className="breadcrumb"><button onClick={() => nav('inicio')}>Início</button><span>/</span><strong>{activeTitle}</strong><button className="collapse-menu" onClick={toggleMenu}><Menu size={17}/></button></div><div className="page-content"><div className="page-heading"><div><div className="eyebrow">CAMPANHA EVANGELIZADORA</div><h1>{title}</h1><p>{subtitle}</p></div><span className="today-pill"><CalendarDays size={15}/>{new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date())}</span></div>
         {error && <div className="alert"><Activity size={17}/><span>{error}</span><button onClick={load}>Tentar novamente</button><button className="alert-close" onClick={() => setError('')}><X size={16}/></button></div>}
-        {scaleMessageDraft && <div className="modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setScaleMessageDraft(null); }}><section className="convert-modal scale-message-modal" role="dialog" aria-modal="true" aria-labelledby="scale-message-title"><div className="panel-heading"><div><h2 id="scale-message-title">Mensagem da escala</h2><p>Mensagem preparada para {scaleMessageDraft.teacherName}.</p></div><button className="icon-button" onClick={() => setScaleMessageDraft(null)} aria-label="Fechar"><X size={18}/></button></div><label className="field">Texto da mensagem<textarea readOnly rows={6} value={scaleMessageDraft.message}/></label>{!scaleMessageDraft.teacherPhone && <p className="scale-message-warning">Esse professor ainda não tem telefone cadastrado. Você pode copiar a mensagem para enviá-la por outro meio.</p>}{scaleMessageNotice && <p className="scale-message-notice" role="status">{scaleMessageNotice}</p>}<div className="convert-modal-footer"><button className="button secondary" onClick={copyScaleMessage}><FileInput size={16}/> Copiar mensagem</button><button className="button primary" onClick={openScaleMessageInWhatsApp} disabled={!scaleMessageDraft.whatsappUrl}><MessageCircle size={16}/> Abrir WhatsApp</button></div></section></div>}
+        {page === 'escala' && quizNotice && <div className={`quiz-notice ${quizNotice.startsWith('Falha') ? 'error' : ''}`} role="status"><span>{quizNotice}</span><button className="icon-button" onClick={() => setQuizNotice('')} aria-label="Fechar aviso"><X size={15}/></button></div>}
+         {scaleMessageDraft && <div className="modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setScaleMessageDraft(null); }}><section className="convert-modal scale-message-modal" role="dialog" aria-modal="true" aria-labelledby="scale-message-title"><div className="panel-heading"><div><h2 id="scale-message-title">Mensagem da escala</h2><p>Mensagem preparada para {scaleMessageDraft.teacherName}.</p></div><button className="icon-button" onClick={() => setScaleMessageDraft(null)} aria-label="Fechar"><X size={18}/></button></div><label className="field">Texto da mensagem<textarea readOnly rows={6} value={scaleMessageDraft.message}/></label>{!scaleMessageDraft.teacherPhone && <p className="scale-message-warning">Esse professor ainda não tem telefone cadastrado. Você pode copiar a mensagem para enviá-la por outro meio.</p>}{scaleMessageNotice && <p className="scale-message-notice" role="status">{scaleMessageNotice}</p>}<div className="convert-modal-footer"><button className="button secondary" onClick={copyScaleMessage}><FileInput size={16}/> Copiar mensagem</button><button className="button primary" onClick={openScaleMessageInWhatsApp} disabled={!scaleMessageDraft.whatsappUrl}><MessageCircle size={16}/> Abrir WhatsApp</button></div></section></div>}
+        {quizCountDraft && <div className="modal-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setQuizCountDraft(null); }}><section className="convert-modal scale-edit-modal quiz-count-modal" role="dialog" aria-modal="true" aria-labelledby="quiz-count-title"><div className="panel-heading"><div><h2 id="quiz-count-title">Gerar questionário</h2><p>{quizCountDraft.title}</p></div><button className="icon-button" onClick={() => setQuizCountDraft(null)} aria-label="Fechar"><X size={18}/></button></div><label className="field">Quantidade de questões<input type="number" min="1" max="30" value={quizCountDraft.questionCount} onChange={(event) => setQuizCountDraft({ ...quizCountDraft, questionCount: event.target.value })}/><small>Escolha de 1 a 30 questões de múltipla escolha.</small></label>{quizNotice && <p className="quiz-notice error" role="alert">{quizNotice}</p>}<div className="convert-modal-footer"><button className="button secondary" onClick={() => { setQuizCountDraft(null); setQuizNotice(''); }}>Cancelar</button><button className="button primary" onClick={requestQuizGeneration} disabled={quizGeneratingLessonId === quizCountDraft.id || !Number.isInteger(Number(quizCountDraft.questionCount)) || Number(quizCountDraft.questionCount) < 1 || Number(quizCountDraft.questionCount) > 30}>{quizGeneratingLessonId === quizCountDraft.id ? <LoaderCircle size={16} className="quiz-spinner"/> : <WandSparkles size={16}/>}Gerar questões</button></div></section></div>}
+        {activeQuiz && <div className="modal-overlay quiz-view-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setActiveQuiz(null); }}><section className="convert-modal quiz-view-modal" role="dialog" aria-modal="true" aria-labelledby="quiz-view-title"><header className="quiz-document-header">{activeCongregation?.logoData && <img src={activeCongregation.logoData} alt={`Logo ${activeCongregation.name}`}/>}<div><span>{activeCongregation?.name || 'Campanha Evangelizadora'}</span><h2 id="quiz-view-title">{activeQuiz.lessonTitle}</h2><small>Questionário · {activeQuiz.questions.length} questões</small></div><button className="icon-button quiz-close" onClick={() => setActiveQuiz(null)} aria-label="Fechar"><X size={19}/></button></header><div className="quiz-question-columns">{activeQuiz.questions.map((item, index) => <article className="quiz-question" key={`${activeQuiz.id}-${index}`}><h3><span>{index + 1}.</span> {item.question}</h3><ol type="A">{item.options.map((option, optionIndex) => <li key={optionIndex}>{option.replace(/^[A-D][).]\s*/, '')}</li>)}</ol><details><summary>Ver gabarito e explicação</summary><p><b>Resposta:</b> {item.correctAnswer}</p>{item.explanation && <p>{item.explanation}</p>}</details></article>)}</div><footer className="quiz-modal-footer"><button className="button secondary" onClick={() => setActiveQuiz(null)}>Fechar</button><button className="button primary" onClick={exportQuizPdf}><Download size={16}/> Baixar PDF paisagem</button></footer></section></div>}
         {['relatorios', 'frequencia'].includes(page) && activeCongregation && <header className="report-brand">{activeCongregation.logoData && <img src={activeCongregation.logoData} alt="Logo"/>}<div><b>{activeCongregation.name}</b><span>{[activeCongregation.area && `Área ${activeCongregation.area}`, activeCongregation.sector && `Setor ${activeCongregation.sector}`].filter(Boolean).join(' · ')}</span></div></header>}
-        {page === 'integracoes' && <div className="integration-public-note">Cole o link público do formulário (<code>/forms/d/e/…/viewform</code>) ou o ID público. Os campos são lidos da página pública; não é necessária permissão de edição.</div>}
+         {page === 'integracoes' && <div className="integration-public-note">Cole o link público do formulário (<code>/forms/d/e/…/viewform</code>) ou o ID público. Os campos são lidos da página pública; não é necessária permissão de edição.</div>}
         {unsentIntegrationRows.length > 0 && <section className="panel form-actions-panel"><PanelHeading icon={FileInput} title="Enviar itens ao Google Forms" description="Abra o formulário pré-preenchido e confirme aqui depois de enviar a resposta."/><div className="form-action-list">{unsentIntegrationRows.map((row) => { const key = `${row.sectionId}:${row.recordId}`; return <div className="form-action-row" key={key}><div className="form-action-name"><b>{row.title}</b><small>{integrationSections.find((section) => section.id === row.sectionId)?.title}</small></div><div className="form-action-buttons"><button className="button secondary form-open-button" onClick={() => openPrefilledForm(row)} title="Abrir formulário pré-preenchido"><FileInput size={16}/><span>Abrir formulário</span></button>{formOpenedItems[key] && <button className="button primary form-confirm-button" onClick={() => notify(() => markIntegrationItemSent(row))}><CircleCheck size={16}/><span>Marcar enviado</span></button>}</div></div>; })}</div></section>}
         {page === 'integracoes' && <>
+          <section className="panel integration-panel chatgpt-integration-panel">
+            <PanelHeading icon={WandSparkles} title="ChatGPT" description="Gere questionários a partir do conteúdo das lições do discipulado." />
+            <div className="integration-status-row"><div className="integration-description"><span className={`status-dot ${chatGptConfigured ? 'on' : ''}`} /><div><b>{chatGptConfigured ? 'Integração configurada' : 'Integração não configurada'}</b><small>O token é salvo criptografado e usado somente para solicitar os questionários desta congregação.</small></div></div></div>
+            <label className="field chatgpt-token-field">Token da API OpenAI<input type="text" autoComplete="off" spellCheck="false" value={chatGptApiKey} onChange={(event) => { setChatGptApiKey(event.target.value); setChatGptConfigured(false); setChatGptMessage(''); }} placeholder="sk-..."/><small>Você pode criar e revogar tokens temporários no painel da OpenAI. O token fica visível aqui para facilitar a troca.</small></label>
+            <div className="integration-footer"><span className="integration-notice" role="status">{chatGptMessage}</span><button className="button primary" onClick={saveChatGptIntegration} disabled={chatGptBusy}><Save size={16}/>{chatGptBusy ? 'Salvando…' : 'Salvar token do ChatGPT'}</button></div>
+          </section>
           <section className="panel integration-panel">
             <PanelHeading icon={PlugZap} title="Google Forms" description="Configure um link público e escolha os dados a pré-preencher." />
             <div className="integration-status-row">
@@ -877,7 +1006,13 @@ function App() {
                     </button>
                     <button className={`scale-content-action ${lesson.content ? 'has-content' : ''}`} onClick={() => setEditingLessonContent({ id: lesson.id, title: lesson.title, content: lesson.content || '' })} aria-label={`Adicionar ou editar conteúdo da lição ${lesson.title}`} title={lesson.content ? 'Editar conteúdo da lição' : 'Adicionar conteúdo da lição'}><FileText size={15}/></button>
                     {lesson.justification && <small className="scale-lesson-justification">Justificativa registrada</small>}
-                    <button className="scale-message-action" onClick={() => prepareScaleMessage(lesson)} aria-label={`Montar mensagem para ${teacherName}`} title="Montar mensagem para o professor"><MessageCircle size={14}/></button>
+                    <div className="scale-card-actions">
+                      <button className="scale-ai-action" disabled={!chatGptConfigured || !chatGptApiKey.trim() || !lesson.content?.trim() || (quizJobs[lesson.id] || []).some((quiz) => quiz.status === 'pending')} onClick={() => { setQuizNotice(''); setQuizCountDraft({ id: lesson.id, title: lesson.title, questionCount: 10 }); }} title={!chatGptConfigured || !chatGptApiKey.trim() ? 'Configure o ChatGPT em Integrações' : !lesson.content?.trim() ? 'Adicione o conteúdo da lição primeiro' : 'Gerar questionário com IA'} aria-label={`Gerar questionário para ${lesson.title}`}>
+                        {(quizJobs[lesson.id] || []).some((quiz) => quiz.status === 'pending') ? <LoaderCircle size={14} className="quiz-spinner"/> : <WandSparkles size={14}/>}
+                      </button>
+                      {(quizJobs[lesson.id] || []).find((quiz) => quiz.status === 'completed') && <button className="scale-quiz-action" onClick={() => setActiveQuiz((quizJobs[lesson.id] || []).find((quiz) => quiz.status === 'completed'))} title="Abrir questionário gerado" aria-label={`Abrir questionário de ${lesson.title}`}><ClipboardList size={14}/></button>}
+                      <button className="scale-message-action" onClick={() => prepareScaleMessage(lesson)} aria-label={`Montar mensagem para ${teacherName}`} title="Montar mensagem para o professor"><MessageCircle size={14}/></button>
+                    </div>
                   </article>;
                 })}</div>
               </div>

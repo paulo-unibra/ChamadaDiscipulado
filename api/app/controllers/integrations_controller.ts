@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
 import { getCongregationId, getIntegration, getSentItems, markItemSent, saveIntegration, scrapePublicFormQuestions } from '#services/google_forms_service'
+import { getChatGptApiKey, saveChatGptApiKey } from '#services/chatgpt_service'
 
 const VALID_SECTIONS = new Set(['new-converts', 'students', 'classes', 'teachers', 'attendance'])
 
@@ -9,6 +10,23 @@ async function validCongregation(congregationId: string) {
 }
 
 export default class IntegrationsController {
+  async showChatGpt({ request, response }: HttpContext) {
+    const congregationId = getCongregationId(request)
+    if (!(await validCongregation(congregationId))) return response.badRequest({ message: 'Selecione uma congregação válida.' })
+    const apiKey = await getChatGptApiKey(congregationId)
+    return response.ok({ configured: Boolean(apiKey), apiKey })
+  }
+
+  async saveChatGpt({ request, response }: HttpContext) {
+    const congregationId = getCongregationId(request)
+    if (!(await validCongregation(congregationId))) return response.badRequest({ message: 'Selecione uma congregação válida.' })
+    try {
+      return response.ok(await saveChatGptApiKey(congregationId, request.input('apiKey')))
+    } catch (error) {
+      return response.badRequest({ message: error instanceof Error ? error.message : 'Não foi possível salvar o token do ChatGPT.' })
+    }
+  }
+
   async show({ request, response }: HttpContext) {
     const congregationId = getCongregationId(request)
     if (!(await validCongregation(congregationId))) return response.badRequest({ message: 'Selecione uma congregação válida.' })

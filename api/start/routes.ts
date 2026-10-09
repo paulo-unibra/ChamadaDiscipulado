@@ -13,6 +13,7 @@ import { middleware } from './kernel.js'
 const SchoolController = () => import('#controllers/school_controller')
 const AuthController = () => import('#controllers/auth_controller')
 const IntegrationsController = () => import('#controllers/integrations_controller')
+const QuizzesController = () => import('#controllers/quizzes_controller')
 
 router.get('/', async () => {
   return {
@@ -32,6 +33,8 @@ router
   .group(() => {
     router.get('/integrations/google/forms', [IntegrationsController, 'show'])
     router.put('/integrations/google/forms', [IntegrationsController, 'save'])
+    router.get('/integrations/chatgpt', [IntegrationsController, 'showChatGpt'])
+    router.put('/integrations/chatgpt', [IntegrationsController, 'saveChatGpt'])
     router.get('/integrations/google/forms/:formId/questions', [IntegrationsController, 'questions'])
     router.get('/integrations/google/forms/sent-items', [IntegrationsController, 'sentItems'])
     router.post('/integrations/google/forms/mark-sent', [IntegrationsController, 'markSent'])
@@ -47,6 +50,8 @@ router
     router.delete('/school/classes/:id', [SchoolController, 'deleteClass'])
     router.put('/school/classes/:id/scale', [SchoolController, 'saveClassScale'])
     router.get('/school/classes/:id/scale/export', [SchoolController, 'exportClassScale'])
+    router.get('/school/quizzes', [QuizzesController, 'list'])
+    router.post('/school/classes/:classId/scale/:scheduleId/quizzes', [QuizzesController, 'generate'])
     router.put('/school/classes/:id/start-date', [SchoolController, 'updateClassStartDate'])
 
     router.post('/school/students', [SchoolController, 'createStudent'])
