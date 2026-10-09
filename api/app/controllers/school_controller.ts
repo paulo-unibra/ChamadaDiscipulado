@@ -263,6 +263,7 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
     attendanceTeachersRows,
     attendanceEntriesRows,
     newConvertsRows,
+    scheduleRows,
   ] = await Promise.all([
     db.from('congregations').select('*').orderBy('name', 'asc'),
     db
@@ -305,6 +306,7 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
       .whereNull('deleted_at')
       .orderBy('conversion_date', 'desc')
       .orderBy('created_at', 'desc'),
+    db.from('discipleship_schedule').select('*').where('congregation_id', congregationId).orderBy('lesson_date', 'asc'),
   ])
 
   const classStudentsByClassId = classStudentsRows.reduce<Record<string, string[]>>((acc, row) => {
@@ -440,6 +442,13 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
     teachers,
     attendanceRecords,
     newConverts,
+    discipleshipSchedule: scheduleRows.map((row) => ({
+      id: String(row.id),
+      classId: String(row.class_id),
+      date: normalizeDateForClient(row.lesson_date),
+      title: row.title,
+      teacherId: row.teacher_id ? String(row.teacher_id) : '',
+    })),
   }
 }
 
@@ -750,6 +759,43 @@ export default class SchoolController {
     })
 
     return response.ok(await getState(getCongregationId(request)))
+  }
+
+  async saveClassScale({ request, params, response }: HttpContext) {
+    const congregationId = getCongregationId(request)
+    const classRow = await db.from('classes').where('id', params.id).where('congregation_id', congregationId).whereNull('deleted_at').first()
+    if (!classRow) return response.notFound({ message: 'Turma não encontrada nesta congregação.' })
+    const lessons = request.input('lessons')
+    if (!Array.isArray(lessons)) return response.badRequest({ message: 'A escala enviada é inválida.' })
+    const normalized: Array<{
+      id: string
+      congregation_id: string
+      class_id: string
+      lesson_date: string
+      title: string
+      teacher_id: string | null
+    }> = []
+    const seenDates = new Set<string>()
+    for (const lesson of lessons) {
+      const date = safeString(lesson?.date)
+      const title = safeString(lesson?.title)
+      const teacherId = safeString(lesson?.teacherId)
+      if (!isValidIsoDate(date) || new Date(`${date}T12:00:00Z`).getUTCDay() !== 0 || !title) {
+        return response.badRequest({ message: 'Cada aula precisa ter um título e uma data de domingo válida.' })
+      }
+      if (seenDates.has(date)) return response.badRequest({ message: 'Não pode haver mais de uma aula na mesma data.' })
+      seenDates.add(date)
+      if (teacherId && !(await db.from('teachers').where('id', teacherId).where('congregation_id', congregationId).whereNull('deleted_at').first())) {
+        return response.badRequest({ message: 'Selecione um professor válido desta congregação.' })
+      }
+      normalized.push({ id: id('schedule'), congregation_id: congregationId, class_id: String(params.id), lesson_date: date, title, teacher_id: teacherId || null })
+    }
+    await db.transaction(async (trx) => {
+      await trx.from('discipleship_schedule').where('class_id', params.id).where('congregation_id', congregationId).delete()
+      if (normalized.length) await trx.table('discipleship_schedule').multiInsert(normalized)
+    })
+    await writeAuditLog(db, request, { action: 'discipleship_schedule.update', entityType: 'class', entityId: String(params.id), details: { lessonCount: normalized.length } })
+    return response.ok(await getState(congregationId))
   }
 
   async createStudent({ request, response }: HttpContext) {

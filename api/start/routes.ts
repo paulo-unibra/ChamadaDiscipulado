@@ -44,6 +44,7 @@ router
 
     router.post('/school/classes', [SchoolController, 'createClass'])
     router.delete('/school/classes/:id', [SchoolController, 'deleteClass'])
+    router.put('/school/classes/:id/scale', [SchoolController, 'saveClassScale'])
 
     router.post('/school/students', [SchoolController, 'createStudent'])
     router.delete('/school/students/:id', [SchoolController, 'deleteStudent'])
