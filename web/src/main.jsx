@@ -475,12 +475,13 @@ function App() {
       const contactDigits = String(report.congregation.justificationContact || '').replace(/\D/g, '');
       const whatsappNumber = contactDigits ? `55${contactDigits}` : '';
       const whatsappUrl = whatsappNumber ? `https://wa.me/${whatsappNumber}` : '';
+      const abbreviatedMonths = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
       autoTable(document, {
         startY: 78,
         margin: { left: margin, right: margin, bottom: 30 },
         head: [['Data', 'Título da aula', 'Professor']],
         body: report.lessons.map((lesson) => [
-          (() => { const value = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${lesson.date}T12:00:00Z`)); return `${value.charAt(0).toLocaleUpperCase('pt-BR')}${value.slice(1)}`; })(),
+          (() => { const date = new Date(`${lesson.date}T12:00:00Z`), weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', timeZone: 'UTC' }).format(date); return `${weekday.charAt(0).toLocaleUpperCase('pt-BR')}${weekday.slice(1)}, ${String(date.getUTCDate()).padStart(2, '0')} de ${abbreviatedMonths[date.getUTCMonth()]} de ${date.getUTCFullYear()}`; })(),
           lesson.title,
           lesson.teacher,
         ]),
@@ -496,12 +497,12 @@ function App() {
           contactY = 22;
         }
         document.setFont('helvetica', 'normal');
-        document.setFontSize(10);
+        document.setFontSize(13);
         document.setTextColor(52, 64, 84);
         document.text('Paz do Senhor! Caso não possa atender à escala,', margin, contactY);
         document.setTextColor(27, 86, 163);
         document.textWithLink('clique aqui para avisar pelo WhatsApp.', margin, contactY + 6, { url: whatsappUrl });
-        document.setFontSize(9.5);
+        document.setFontSize(11);
         document.setTextColor(91, 107, 127);
         document.text(`Contato para justificativas: ${formatBrazilPhone(contactDigits)}`, margin, contactY + 12);
       }
