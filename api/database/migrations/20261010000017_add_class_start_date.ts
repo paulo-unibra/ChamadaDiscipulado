@@ -2,25 +2,27 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 
 export default class extends BaseSchema {
   private isDuplicateColumnError(error: unknown) {
-    return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_FIELDNAME'
+    return typeof error === 'object' && error !== null && (
+      ('code' in error && error.code === 'ER_DUP_FIELDNAME') ||
+      ('errno' in error && error.errno === 1060) ||
+      ('message' in error && typeof error.message === 'string' && /duplicate column name/i.test(error.message))
+    )
   }
 
   async up() {
-    if (!(await this.schema.hasColumn('classes', 'start_date'))) {
-      try {
-        await this.schema.alterTable('classes', (table) => table.date('start_date').nullable())
-      } catch (error) {
-        if (!this.isDuplicateColumnError(error)) throw error
-      }
+    try {
+      await this.schema.alterTable('classes', (table) => table.date('start_date').nullable())
+    } catch (error) {
+      if (!this.isDuplicateColumnError(error)) throw error
     }
     if (await this.schema.hasTable('discipleship_schedule')) {
       await this.schema.raw(`
         UPDATE classes c
         SET start_date = COALESCE(
           (SELECT MIN(ar.date) FROM attendance_records ar WHERE ar.class_id = c.id AND ar.deleted_at IS NULL),
-          (SELECT MIN(ds.lesson_date) FROM discipleship_schedule ds WHERE ds.class_id = c.id)
+          (SELECT MIN(ds.lesson_date) FROM discipleship_schedule ds WHERE ds.class_id = c.id),
+          c.start_date
         )
-        WHERE c.start_date IS NULL
       `)
     }
     const now = new Date()
