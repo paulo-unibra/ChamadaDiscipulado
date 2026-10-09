@@ -454,6 +454,7 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
       area: row.area ?? '',
       sector: row.sector ?? '',
       logoData: row.logo_data ?? '',
+      justificationContact: row.justification_contact ?? '',
       createdAt: row.created_at,
     })),
     activeCongregationId: congregationId,
@@ -548,16 +549,20 @@ export default class SchoolController {
     const name = safeString(request.input('name'))
     const area = safeString(request.input('area'))
     const sector = safeString(request.input('sector'))
+    const justificationContact = safeString(request.input('justificationContact')).replace(/\D/g, '')
     const logoData = safeString(request.input('logoData'))
     const congregationId = String(params.id)
     const existing = await db.from('congregations').where('id', congregationId).first()
     if (!existing) return response.notFound({ message: 'Congregação não encontrada.' })
     if (!name) return response.badRequest({ message: 'O nome da congregação é obrigatório.' })
+    if (justificationContact && ![10, 11].includes(justificationContact.length)) {
+      return response.badRequest({ message: 'Informe o DDD e um telefone com 10 ou 11 dígitos para o contato de justificativas.' })
+    }
     if (logoData && (logoData.length > 1_800_000 || !/^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/]+=*$/.test(logoData))) {
       return response.badRequest({ message: 'A logo deve ser uma imagem PNG, JPEG ou WebP de até 1,8 MB após a compressão.' })
     }
-    await db.from('congregations').where('id', congregationId).update({ name, area, sector, logo_data: logoData || null, updated_at: new Date() })
-    await writeAuditLog(db, request, { action: 'congregation.update', entityType: 'congregation', entityId: congregationId, details: { name, area, sector, hasLogo: Boolean(logoData) } })
+    await db.from('congregations').where('id', congregationId).update({ name, area, sector, logo_data: logoData || null, justification_contact: justificationContact || null, updated_at: new Date() })
+    await writeAuditLog(db, request, { action: 'congregation.update', entityType: 'congregation', entityId: congregationId, details: { name, area, sector, hasLogo: Boolean(logoData), hasJustificationContact: Boolean(justificationContact) } })
     return response.ok(await getState(getCongregationId(request)))
   }
 
@@ -905,7 +910,7 @@ export default class SchoolController {
 
     const [congregation, lessonRows] = await Promise.all([
       db.from('congregations')
-        .select('id', 'name', 'area', 'sector', 'logo_data')
+        .select('id', 'name', 'area', 'sector', 'logo_data', 'justification_contact')
         .where('id', congregationId)
         .first(),
       db.from('discipleship_schedule as schedule')
@@ -922,6 +927,7 @@ export default class SchoolController {
         area: congregation?.area || '',
         sector: congregation?.sector || '',
         logoData: congregation?.logo_data || '',
+        justificationContact: congregation?.justification_contact || '',
       },
       class: {
         id: String(classRow.id),
