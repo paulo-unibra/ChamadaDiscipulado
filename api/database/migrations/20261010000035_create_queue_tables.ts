@@ -8,14 +8,15 @@ export default class extends BaseSchema {
         `ALTER TABLE \`${tableName}\` ADD INDEX \`${indexName}\` (${columnSql})`
       )
     } catch (error) {
-      if (
-        typeof error !== 'object' ||
-        error === null ||
-        !('code' in error) ||
-        error.code !== 'ER_DUP_KEYNAME'
-      ) {
-        throw error
-      }
+      const duplicateIndex =
+        typeof error === 'object' &&
+        error !== null &&
+        (('code' in error && error.code === 'ER_DUP_KEYNAME') ||
+          ('errno' in error && error.errno === 1061) ||
+          ('message' in error &&
+            typeof error.message === 'string' &&
+            error.message.includes('Duplicate key name')))
+      if (!duplicateIndex) throw error
     }
   }
 
