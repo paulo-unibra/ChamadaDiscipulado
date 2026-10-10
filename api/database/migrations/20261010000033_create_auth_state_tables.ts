@@ -19,9 +19,7 @@ export default class extends BaseSchema {
           table.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(this.now())
         })
       } catch (error) {
-        if (!this.isTableExistsError(error) || !(await this.schema.hasTable('admin_credentials'))) {
-          throw error
-        }
+        if (!this.isTableExistsError(error)) throw error
       }
     }
     if (!(await this.schema.hasTable('api_login_challenges'))) {
@@ -34,12 +32,7 @@ export default class extends BaseSchema {
           table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())
         })
       } catch (error) {
-        if (
-          !this.isTableExistsError(error) ||
-          !(await this.schema.hasTable('api_login_challenges'))
-        ) {
-          throw error
-        }
+        if (!this.isTableExistsError(error)) throw error
       }
     }
   }

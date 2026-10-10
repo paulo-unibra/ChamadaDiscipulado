@@ -34,8 +34,7 @@ export default class extends BaseSchema {
           .onDelete('CASCADE')
       })
     } catch (error) {
-      if (!this.isTableExistsError(error) || !(await this.schema.hasTable(this.tableName)))
-        throw error
+      if (!this.isTableExistsError(error)) throw error
     }
   }
 

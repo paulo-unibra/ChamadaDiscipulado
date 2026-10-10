@@ -30,9 +30,7 @@ export default class extends BaseSchema {
           table.index(['queue', 'status', 'finished_at'])
         })
       } catch (error) {
-        if (!this.isTableExistsError(error) || !(await this.schema.hasTable('queue_jobs'))) {
-          throw error
-        }
+        if (!this.isTableExistsError(error)) throw error
       }
     }
     if (!(await this.schema.hasTable('queue_schedules'))) {
@@ -55,9 +53,7 @@ export default class extends BaseSchema {
           table.index(['status', 'next_run_at'])
         })
       } catch (error) {
-        if (!this.isTableExistsError(error) || !(await this.schema.hasTable('queue_schedules'))) {
-          throw error
-        }
+        if (!this.isTableExistsError(error)) throw error
       }
     }
   }
