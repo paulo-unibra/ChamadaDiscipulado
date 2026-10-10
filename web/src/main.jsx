@@ -814,7 +814,8 @@ function App() {
     }
     for (let currentPageIndex = 0; currentPageIndex < pages.length; currentPageIndex += 1) {
       const currentPage = pages[currentPageIndex];
-      if (currentPageIndex > 0) { document.addPage('a4', 'landscape'); drawHeader(); }
+      if (currentPageIndex === 0) drawHeader(true);
+      else { document.addPage('a4', 'landscape'); drawHeader(); }
       const availableHeight = pageBottom - currentPage.startY;
       for (let currentColumn = 0; currentColumn < 2; currentColumn += 1) {
         const items = currentPage.columns[currentColumn];
