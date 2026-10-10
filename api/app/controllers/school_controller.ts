@@ -1,6 +1,19 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
+import logger from '@adonisjs/core/services/logger'
+import type { QueryClientContract } from '@adonisjs/lucid/types/database'
 import { preserveScheduleFields } from '#services/schedule_fields_service'
+import {
+  attendanceValidator,
+  classStartDateValidator,
+  classStudentLinkValidator,
+  classValidator,
+  congregationValidator,
+  newConvertValidator,
+  studentValidator,
+  teacherGenderValidator,
+  teacherValidator,
+} from '#validators/school_validator'
 
 const VALID_STATUSES = ['present', 'absent', 'justified', 'late'] as const
 type AttendanceStatus = (typeof VALID_STATUSES)[number]
@@ -67,46 +80,6 @@ const CONVERSION_EVENTS = [
   'Outras ações',
 ] as const
 
-type StudentPayload = {
-  name: string
-  birthDate?: string
-  studentPhone?: string
-  email?: string
-  guardianName?: string
-  guardianPhone?: string
-  address?: string
-  notes?: string
-  classIds?: string[]
-}
-
-type AttendancePayload = {
-  classId: string
-  lessonName?: string
-  teacherIds: string[]
-  date: string
-  notes?: string
-  entries: Array<{
-    studentId: string
-    status: AttendanceStatus
-    note?: string
-  }>
-}
-
-type NewConvertPayload = {
-  eventName: string
-  name: string
-  conversionDate: string
-  cep?: string
-  street?: string
-  number?: string
-  complement?: string
-  neighborhood?: string
-  city?: string
-  state?: string
-  birthDate?: string
-  contactPhone?: string
-}
-
 const DISCIPLESHIP_LESSONS = [
   'INTRODUÇÃO AO DISCIPULADO',
   'HISTÓRIA DAS ASSEMBLEIAS DE DEUS',
@@ -142,7 +115,11 @@ type AuditEntry = {
   details?: Record<string, unknown>
 }
 
-async function writeAuditLog(connection: any, request: HttpContext['request'], entry: AuditEntry) {
+async function writeAuditLog(
+  connection: typeof db | QueryClientContract,
+  request: HttpContext['request'],
+  entry: AuditEntry
+) {
   try {
     await connection.table('audit_logs').insert({
       id: id('audit'),
@@ -154,7 +131,10 @@ async function writeAuditLog(connection: any, request: HttpContext['request'], e
       user_agent: (request.header('user-agent') || '').slice(0, 255) || null,
     })
   } catch (error) {
-    console.warn('[audit] failed to write log:', error)
+    logger.warn(
+      { err: error, requestId: request.header('x-request-id') },
+      'Failed to write audit log'
+    )
   }
 }
 
@@ -263,7 +243,9 @@ function nearestWeekdayDate(weekday: number) {
   const forward = (weekday - daysSince + 7) % 7
   const backward = forward === 0 ? 0 : forward - 7
   const offset = Math.abs(backward) < Math.abs(forward) ? backward : forward
-  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + offset)).toISOString().slice(0, 10)
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + offset))
+    .toISOString()
+    .slice(0, 10)
 }
 
 function addDaysToIsoDate(value: string, days: number) {
@@ -328,7 +310,11 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
       .whereNull('deleted_at')
       .orderBy('conversion_date', 'desc')
       .orderBy('created_at', 'desc'),
-    db.from('discipleship_schedule').select('*').where('congregation_id', congregationId).orderBy('lesson_date', 'asc'),
+    db
+      .from('discipleship_schedule')
+      .select('*')
+      .where('congregation_id', congregationId)
+      .orderBy('lesson_date', 'asc'),
     db.from('discipleship_cycles').select('*').orderBy('position', 'asc'),
     db.from('discipleship_lessons').select('*').orderBy('position', 'asc'),
   ])
@@ -352,19 +338,18 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
     {}
   )
 
-  const attendanceEntriesByRecord = attendanceEntriesRows.reduce<Record<string, any[]>>(
-    (acc, row) => {
-      const attendanceId = String(row.attendance_record_id)
-      acc[attendanceId] ??= []
-      acc[attendanceId].push({
-        studentId: String(row.student_id),
-        status: row.status,
-        note: row.note ?? '',
-      })
-      return acc
-    },
-    {}
-  )
+  const attendanceEntriesByRecord = attendanceEntriesRows.reduce<
+    Record<string, Array<{ studentId: string; status: string; note: string }>>
+  >((acc, row) => {
+    const attendanceId = String(row.attendance_record_id)
+    acc[attendanceId] ??= []
+    acc[attendanceId].push({
+      studentId: String(row.student_id),
+      status: row.status,
+      note: row.note ?? '',
+    })
+    return acc
+  }, {})
 
   const attendanceClassIds = new Set(attendanceRows.map((row) => String(row.class_id)))
 
@@ -396,15 +381,22 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
     .map((row) => ({
       id: String(row.id),
       name: row.name,
-       description: row.description ?? '',
-       startDate: normalizeDateForClient(row.start_date) ||
-         scheduleRows.filter((lesson) => String(lesson.class_id) === String(row.id)).map((lesson) => normalizeDateForClient(lesson.lesson_date)).sort()[0] ||
-         attendanceRows.filter((lesson) => String(lesson.class_id) === String(row.id)).map((lesson) => normalizeDateForClient(lesson.date)).sort()[0] ||
-         nearestWeekdayDate(Number(row.lesson_weekday ?? 0)),
-       lessonWeekday: Number(row.lesson_weekday ?? 0),
-       studentIds: classStudentsByClassId[String(row.id)] ?? [],
-       lessonTime: safeString(String(row.lesson_time ?? '09:00')) || '09:00',
-       createdAt: row.created_at,
+      description: row.description ?? '',
+      startDate:
+        normalizeDateForClient(row.start_date) ||
+        scheduleRows
+          .filter((lesson) => String(lesson.class_id) === String(row.id))
+          .map((lesson) => normalizeDateForClient(lesson.lesson_date))
+          .sort()[0] ||
+        attendanceRows
+          .filter((lesson) => String(lesson.class_id) === String(row.id))
+          .map((lesson) => normalizeDateForClient(lesson.date))
+          .sort()[0] ||
+        nearestWeekdayDate(Number(row.lesson_weekday ?? 0)),
+      lessonWeekday: Number(row.lesson_weekday ?? 0),
+      studentIds: classStudentsByClassId[String(row.id)] ?? [],
+      lessonTime: safeString(String(row.lesson_time ?? '09:00')) || '09:00',
+      createdAt: row.created_at,
       lessonNames: [...DISCIPLESHIP_LESSONS],
     }))
 
@@ -458,9 +450,10 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
     createdAt: row.created_at,
   }))
 
-  const cycleByLessonTitle = new Map<string, any>()
+  const cyclesById = new Map(cycleRows.map((cycle) => [String(cycle.id), cycle]))
+  const cycleByLessonTitle = new Map<string, (typeof cycleRows)[number]>()
   for (const lesson of lessonCatalogRows) {
-    const cycle = cycleRows.find((item) => String(item.id) === String(lesson.cycle_id))
+    const cycle = cyclesById.get(String(lesson.cycle_id))
     if (cycle) cycleByLessonTitle.set(String(lesson.title), cycle)
   }
   const discipleshipCycles = cycleRows.map((cycle) => ({
@@ -470,7 +463,11 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
     position: Number(cycle.position),
     lessons: lessonCatalogRows
       .filter((lesson) => String(lesson.cycle_id) === String(cycle.id))
-      .map((lesson) => ({ id: String(lesson.id), title: lesson.title, position: Number(lesson.position) })),
+      .map((lesson) => ({
+        id: String(lesson.id),
+        title: lesson.title,
+        position: Number(lesson.position),
+      })),
   }))
 
   return {
@@ -501,12 +498,17 @@ async function getState(congregationId = DEFAULT_CONGREGATION_ID) {
       teacherId: row.teacher_id ? String(row.teacher_id) : '',
       justification: row.justification ?? '',
       timeOverride: row.lesson_time ?? '',
-      time: row.lesson_time || classes.find((group) => group.id === String(row.class_id))?.lessonTime || '09:00',
-      ...(cycleByLessonTitle.has(String(row.title)) ? {
-        cycleId: String(cycleByLessonTitle.get(String(row.title)).id),
-        cycleName: cycleByLessonTitle.get(String(row.title)).name,
-        cycleColor: cycleByLessonTitle.get(String(row.title)).color,
-      } : {}),
+      time:
+        row.lesson_time ||
+        classes.find((group) => group.id === String(row.class_id))?.lessonTime ||
+        '09:00',
+      ...(cycleByLessonTitle.has(String(row.title))
+        ? {
+            cycleId: String(cycleByLessonTitle.get(String(row.title)).id),
+            cycleName: cycleByLessonTitle.get(String(row.title)).name,
+            cycleColor: cycleByLessonTitle.get(String(row.title)).color,
+          }
+        : {}),
     })),
   }
 }
@@ -542,7 +544,7 @@ export default class SchoolController {
       .groupBy('students.id', 'students.name')
       .orderBy('start_date', 'asc')
 
-    const data = rows.map((row: any) => ({
+    const data = rows.map((row) => ({
       studentId: String(row.id),
       studentName: row.name,
       startDate: row.start_date ? normalizeDateForClient(row.start_date) : '',
@@ -563,12 +565,10 @@ export default class SchoolController {
   }
 
   async createCongregation({ request, response }: HttpContext) {
-    const name = safeString(request.input('name'))
-    const area = safeString(request.input('area'))
-    const sector = safeString(request.input('sector'))
-    if (!name) {
-      return response.badRequest({ message: 'O nome da congregação é obrigatório.' })
-    }
+    const payload = await request.validateUsing(congregationValidator)
+    const name = safeString(payload.name)
+    const area = safeString(payload.area)
+    const sector = safeString(payload.sector)
 
     const congregationId = id('congregation')
     await db.table('congregations').insert({ id: congregationId, name, area, sector })
@@ -582,30 +582,66 @@ export default class SchoolController {
   }
 
   async updateCongregation({ request, params, response }: HttpContext) {
-    const name = safeString(request.input('name'))
-    const area = safeString(request.input('area'))
-    const sector = safeString(request.input('sector'))
-    const justificationContact = safeString(request.input('justificationContact')).replace(/\D/g, '')
-    const scaleMessageTemplate = typeof request.input('scaleMessageTemplate') === 'string' ? request.input('scaleMessageTemplate') as string : ''
-    const logoData = safeString(request.input('logoData'))
+    const payload = await request.validateUsing(congregationValidator)
+    const name = safeString(payload.name)
+    const area = safeString(payload.area)
+    const sector = safeString(payload.sector)
+    const justificationContact = safeString(payload.justificationContact).replace(/\D/g, '')
+    const scaleMessageTemplate = safeString(payload.scaleMessageTemplate)
+    const logoData = safeString(payload.logoData)
     const congregationId = String(params.id)
     const existing = await db.from('congregations').where('id', congregationId).first()
     if (!existing) return response.notFound({ message: 'Congregação não encontrada.' })
     if (!name) return response.badRequest({ message: 'O nome da congregação é obrigatório.' })
     if (justificationContact && ![10, 11].includes(justificationContact.length)) {
-      return response.badRequest({ message: 'Informe o DDD e um telefone com 10 ou 11 dígitos para o contato de justificativas.' })
+      return response.badRequest({
+        message:
+          'Informe o DDD e um telefone com 10 ou 11 dígitos para o contato de justificativas.',
+      })
     }
-    if (scaleMessageTemplate.length > 5000) return response.badRequest({ message: 'A mensagem da escala deve ter no máximo 5.000 caracteres.' })
-    if (logoData && (logoData.length > 1_800_000 || !/^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/]+=*$/.test(logoData))) {
-      return response.badRequest({ message: 'A logo deve ser uma imagem PNG, JPEG ou WebP de até 1,8 MB após a compressão.' })
+    if (scaleMessageTemplate.length > 5000)
+      return response.badRequest({
+        message: 'A mensagem da escala deve ter no máximo 5.000 caracteres.',
+      })
+    if (
+      logoData &&
+      (logoData.length > 1_800_000 ||
+        !/^data:image\/(?:png|jpe?g|webp);base64,[A-Za-z0-9+/]+=*$/.test(logoData))
+    ) {
+      return response.badRequest({
+        message: 'A logo deve ser uma imagem PNG, JPEG ou WebP de até 1,8 MB após a compressão.',
+      })
     }
-    await db.from('congregations').where('id', congregationId).update({ name, area, sector, logo_data: logoData || null, justification_contact: justificationContact || null, scale_message_template: scaleMessageTemplate || null, updated_at: new Date() })
-    await writeAuditLog(db, request, { action: 'congregation.update', entityType: 'congregation', entityId: congregationId, details: { name, area, sector, hasLogo: Boolean(logoData), hasJustificationContact: Boolean(justificationContact), hasScaleMessageTemplate: Boolean(scaleMessageTemplate) } })
+    await db
+      .from('congregations')
+      .where('id', congregationId)
+      .update({
+        name,
+        area,
+        sector,
+        logo_data: logoData || null,
+        justification_contact: justificationContact || null,
+        scale_message_template: scaleMessageTemplate || null,
+        updated_at: new Date(),
+      })
+    await writeAuditLog(db, request, {
+      action: 'congregation.update',
+      entityType: 'congregation',
+      entityId: congregationId,
+      details: {
+        name,
+        area,
+        sector,
+        hasLogo: Boolean(logoData),
+        hasJustificationContact: Boolean(justificationContact),
+        hasScaleMessageTemplate: Boolean(scaleMessageTemplate),
+      },
+    })
     return response.ok(await getState(getCongregationId(request)))
   }
 
   async createNewConvert({ request, response }: HttpContext) {
-    const payload = request.body() as NewConvertPayload
+    const payload = await request.validateUsing(newConvertValidator)
     const congregationId = getCongregationId(request)
     const eventName = safeString(payload.eventName)
     const name = safeString(payload.name)
@@ -663,7 +699,7 @@ export default class SchoolController {
   }
 
   async updateNewConvert({ request, params, response }: HttpContext) {
-    const payload = request.body() as NewConvertPayload
+    const payload = await request.validateUsing(newConvertValidator)
     const congregationId = getCongregationId(request)
     const eventName = safeString(payload.eventName)
     const name = safeString(payload.name)
@@ -672,7 +708,9 @@ export default class SchoolController {
     const cep = safeString(payload.cep).replace(/\D/g, '')
 
     if (!name || !eventName || !conversionDate) {
-      return response.badRequest({ message: 'Atividade, nome e data da conversão são obrigatórios.' })
+      return response.badRequest({
+        message: 'Atividade, nome e data da conversão são obrigatórios.',
+      })
     }
     if (!CONVERSION_EVENTS.includes(eventName as (typeof CONVERSION_EVENTS)[number])) {
       return response.badRequest({ message: 'Selecione uma atividade válida.' })
@@ -681,18 +719,24 @@ export default class SchoolController {
       return response.badRequest({ message: 'Informe datas válidas para conversão e nascimento.' })
     }
     if (birthDate && birthDate > conversionDate) {
-      return response.badRequest({ message: 'A data de nascimento não pode ser posterior à conversão.' })
+      return response.badRequest({
+        message: 'A data de nascimento não pode ser posterior à conversão.',
+      })
     }
-    if (cep && cep.length !== 8) return response.badRequest({ message: 'O CEP deve conter 8 dígitos.' })
+    if (cep && cep.length !== 8)
+      return response.badRequest({ message: 'O CEP deve conter 8 dígitos.' })
 
-    const existing = await db.from('new_converts')
+    const existing = await db
+      .from('new_converts')
       .where('id', params.id)
       .where('congregation_id', congregationId)
       .whereNull('deleted_at')
       .first()
-    if (!existing) return response.notFound({ message: 'Cadastro não encontrado nesta congregação.' })
+    if (!existing)
+      return response.notFound({ message: 'Cadastro não encontrado nesta congregação.' })
 
-    await db.from('new_converts')
+    await db
+      .from('new_converts')
       .where('id', params.id)
       .where('congregation_id', congregationId)
       .update({
@@ -710,7 +754,8 @@ export default class SchoolController {
         contact_phone: safeString(payload.contactPhone) || null,
         updated_at: new Date(),
       })
-    await db.from('google_forms_sent_items')
+    await db
+      .from('google_forms_sent_items')
       .where('congregation_id', congregationId)
       .where('section_id', 'new-converts')
       .where('record_id', params.id)
@@ -752,7 +797,7 @@ export default class SchoolController {
   async auditLogs({ response }: HttpContext) {
     const rows = await db.from('audit_logs').orderBy('created_at', 'desc').limit(200)
 
-    const data = rows.map((row: any) => ({
+    const data = rows.map((row) => ({
       id: String(row.id),
       action: row.action,
       entityType: row.entity_type,
@@ -767,12 +812,14 @@ export default class SchoolController {
   }
 
   async createClass({ request, response }: HttpContext) {
-    const name = safeString(request.input('name'))
-    const description = safeString(request.input('description'))
-    const requestedStartDate = safeString(request.input('startDate'))
-    const requestedWeekday = request.input('weekday')
-    const lessonWeekday = requestedWeekday === undefined || requestedWeekday === null || requestedWeekday === '' ? 0 : Number(requestedWeekday)
-    const lessonTime = safeString(request.input('lessonTime')) || '09:00'
+    const payload = await request.validateUsing(classValidator)
+    const name = safeString(payload.name)
+    const description = safeString(payload.description)
+    const requestedStartDate = safeString(payload.startDate)
+    const requestedWeekday = payload.weekday
+    const lessonWeekday =
+      requestedWeekday === undefined || requestedWeekday === null ? 0 : Number(requestedWeekday)
+    const lessonTime = safeString(payload.lessonTime) || '09:00'
     const startDate = requestedStartDate || nearestWeekdayDate(lessonWeekday)
     const congregationId = getCongregationId(request)
 
@@ -782,9 +829,15 @@ export default class SchoolController {
     if (!Number.isInteger(lessonWeekday) || lessonWeekday < 0 || lessonWeekday > 6) {
       return response.badRequest({ message: 'Selecione um dia da semana válido para a turma.' })
     }
-    if (!isValidLessonTime(lessonTime)) return response.badRequest({ message: 'Informe um horário válido para as aulas da turma.' })
-    if (!isValidIsoDate(startDate) || new Date(`${startDate}T12:00:00Z`).getUTCDay() !== lessonWeekday) {
-      return response.badRequest({ message: 'A data de início deve corresponder ao dia semanal escolhido para a turma.' })
+    if (!isValidLessonTime(lessonTime))
+      return response.badRequest({ message: 'Informe um horário válido para as aulas da turma.' })
+    if (
+      !isValidIsoDate(startDate) ||
+      new Date(`${startDate}T12:00:00Z`).getUTCDay() !== lessonWeekday
+    ) {
+      return response.badRequest({
+        message: 'A data de início deve corresponder ao dia semanal escolhido para a turma.',
+      })
     }
     if (!(await hasCongregation(congregationId))) {
       return response.badRequest({ message: 'A congregação selecionada não existe.' })
@@ -812,37 +865,86 @@ export default class SchoolController {
 
   async updateClassStartDate({ request, params, response }: HttpContext) {
     const congregationId = getCongregationId(request)
-    const startDate = safeString(request.input('startDate'))
-    const classRow = await db.from('classes').where('id', params.id).where('congregation_id', congregationId).whereNull('deleted_at').first()
+    const payload = await request.validateUsing(classStartDateValidator)
+    const startDate = safeString(payload.startDate)
+    const classRow = await db
+      .from('classes')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .whereNull('deleted_at')
+      .first()
     if (!classRow) return response.notFound({ message: 'Turma não encontrada nesta congregação.' })
-    const requestedWeekday = request.input('weekday')
-    const lessonWeekday = requestedWeekday === undefined || requestedWeekday === null || requestedWeekday === '' ? Number(classRow.lesson_weekday ?? 0) : Number(requestedWeekday)
-    const requestedLessonTime = request.input('lessonTime')
-    const lessonTime = requestedLessonTime === undefined || requestedLessonTime === null || requestedLessonTime === '' ? String(classRow.lesson_time || '09:00') : safeString(requestedLessonTime)
+    const requestedWeekday = payload.weekday
+    const lessonWeekday =
+      requestedWeekday === undefined || requestedWeekday === null
+        ? Number(classRow.lesson_weekday ?? 0)
+        : Number(requestedWeekday)
+    const requestedLessonTime = payload.lessonTime
+    const lessonTime =
+      requestedLessonTime === undefined ||
+      requestedLessonTime === null ||
+      requestedLessonTime === ''
+        ? String(classRow.lesson_time || '09:00')
+        : safeString(requestedLessonTime)
     if (!Number.isInteger(lessonWeekday) || lessonWeekday < 0 || lessonWeekday > 6) {
       return response.badRequest({ message: 'Selecione um dia da semana válido para a turma.' })
     }
-    if (!isValidIsoDate(startDate) || new Date(`${startDate}T12:00:00Z`).getUTCDay() !== lessonWeekday) {
-      return response.badRequest({ message: 'A data de início deve corresponder ao dia semanal escolhido para a turma.' })
+    if (
+      !isValidIsoDate(startDate) ||
+      new Date(`${startDate}T12:00:00Z`).getUTCDay() !== lessonWeekday
+    ) {
+      return response.badRequest({
+        message: 'A data de início deve corresponder ao dia semanal escolhido para a turma.',
+      })
     }
-    if (!isValidLessonTime(lessonTime)) return response.badRequest({ message: 'Informe um horário válido para as aulas da turma.' })
+    if (!isValidLessonTime(lessonTime))
+      return response.badRequest({ message: 'Informe um horário válido para as aulas da turma.' })
     const previousStartDate = normalizeDateForClient(classRow.start_date) || startDate
     const previousTime = new Date(`${previousStartDate}T00:00:00Z`).getTime()
     const nextTime = new Date(`${startDate}T00:00:00Z`).getTime()
     const dayShift = Math.round((nextTime - previousTime) / 86_400_000)
     await db.transaction(async (trx) => {
-      await trx.from('classes').where('id', params.id).where('congregation_id', congregationId).update({ start_date: startDate, lesson_weekday: lessonWeekday, lesson_time: lessonTime, updated_at: new Date() })
+      await trx
+        .from('classes')
+        .where('id', params.id)
+        .where('congregation_id', congregationId)
+        .update({
+          start_date: startDate,
+          lesson_weekday: lessonWeekday,
+          lesson_time: lessonTime,
+          updated_at: new Date(),
+        })
       if (dayShift) {
-        const scheduleRows = await trx.from('discipleship_schedule').select('id', 'lesson_date').where('class_id', params.id).where('congregation_id', congregationId)
+        const scheduleRows = await trx
+          .from('discipleship_schedule')
+          .select('id', 'lesson_date')
+          .where('class_id', params.id)
+          .where('congregation_id', congregationId)
         for (const lesson of scheduleRows) {
-          await trx.from('discipleship_schedule').where('id', lesson.id).update({ lesson_date: addDaysToIsoDate(normalizeDateForClient(lesson.lesson_date), 10_000) })
+          await trx
+            .from('discipleship_schedule')
+            .where('id', lesson.id)
+            .update({
+              lesson_date: addDaysToIsoDate(normalizeDateForClient(lesson.lesson_date), 10_000),
+            })
         }
         for (const lesson of scheduleRows) {
-          await trx.from('discipleship_schedule').where('id', lesson.id).update({ lesson_date: addDaysToIsoDate(normalizeDateForClient(lesson.lesson_date), dayShift), updated_at: new Date() })
+          await trx
+            .from('discipleship_schedule')
+            .where('id', lesson.id)
+            .update({
+              lesson_date: addDaysToIsoDate(normalizeDateForClient(lesson.lesson_date), dayShift),
+              updated_at: new Date(),
+            })
         }
       }
     })
-    await writeAuditLog(db, request, { action: 'class.start_date.update', entityType: 'class', entityId: String(params.id), details: { previousStartDate, startDate, dayShift } })
+    await writeAuditLog(db, request, {
+      action: 'class.start_date.update',
+      entityType: 'class',
+      entityId: String(params.id),
+      details: { previousStartDate, startDate, dayShift },
+    })
     return response.ok(await getState(congregationId))
   }
 
@@ -868,7 +970,7 @@ export default class SchoolController {
       .select('id')
       .where('class_id', params.id)
       .whereNull('attendance_records.deleted_at')
-    const recordIds = recordRows.map((row: any) => String(row.id))
+    const recordIds = recordRows.map((row) => String(row.id))
 
     if (recordIds.length > 0) {
       await db.from('attendance_records').whereIn('id', recordIds).update({ deleted_at: deletedAt })
@@ -896,11 +998,21 @@ export default class SchoolController {
 
   async saveClassScale({ request, params, response }: HttpContext) {
     const congregationId = getCongregationId(request)
-    const classRow = await db.from('classes').where('id', params.id).where('congregation_id', congregationId).whereNull('deleted_at').first()
+    const classRow = await db
+      .from('classes')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .whereNull('deleted_at')
+      .first()
     if (!classRow) return response.notFound({ message: 'Turma não encontrada nesta congregação.' })
     const lessons = request.input('lessons')
-    if (!Array.isArray(lessons)) return response.badRequest({ message: 'A escala enviada é inválida.' })
-    const existingRows = await db.from('discipleship_schedule').select('*').where('class_id', params.id).where('congregation_id', congregationId)
+    if (!Array.isArray(lessons))
+      return response.badRequest({ message: 'A escala enviada é inválida.' })
+    const existingRows = await db
+      .from('discipleship_schedule')
+      .select('*')
+      .where('class_id', params.id)
+      .where('congregation_id', congregationId)
     const existingById = new Map(existingRows.map((row) => [String(row.id), row]))
     const lessonWeekday = Number(classRow.lesson_weekday ?? 0)
     const normalized: Array<{
@@ -922,32 +1034,74 @@ export default class SchoolController {
       const teacherId = safeString(lesson?.teacherId)
       const lessonId = safeString(lesson?.id)
       const previous = lessonId ? existingById.get(lessonId) : undefined
-      if (lessonId && seenIds.has(lessonId)) return response.badRequest({ message: 'Uma aula não pode aparecer duas vezes na mesma escala.' })
+      if (lessonId && seenIds.has(lessonId))
+        return response.badRequest({
+          message: 'Uma aula não pode aparecer duas vezes na mesma escala.',
+        })
       if (lessonId) seenIds.add(lessonId)
       const justification = safeString(lesson?.justification)
       const { content, lessonTime, id: preservedId } = preserveScheduleFields(lesson, previous)
       const previousDate = previous ? normalizeDateForClient(previous.lesson_date) : undefined
       if (!isValidIsoDate(date) || !title) {
-        return response.badRequest({ message: 'Cada aula precisa ter um título e uma data válida.' })
+        return response.badRequest({
+          message: 'Cada aula precisa ter um título e uma data válida.',
+        })
       }
-      if (lessonId && previousDate === undefined) return response.badRequest({ message: 'Uma das aulas não pertence à escala desta turma.' })
+      if (lessonId && previousDate === undefined)
+        return response.badRequest({ message: 'Uma das aulas não pertence à escala desta turma.' })
       const dateChanged = previousDate !== undefined && previousDate !== date
       const changedWeekday = new Date(`${date}T12:00:00Z`).getUTCDay() !== lessonWeekday
-      if ((dateChanged || changedWeekday) && !justification) return response.badRequest({ message: 'Informe uma justificativa ao alterar a data da aula ou transferi-la para outro dia da semana.' })
-      if (lessonTime && !isValidLessonTime(lessonTime)) return response.badRequest({ message: 'Informe um horário válido para a aula.' })
-      if (content.length > 10000) return response.badRequest({ message: 'O conteúdo da lição deve ter no máximo 10.000 caracteres.' })
-      if (seenDates.has(date)) return response.badRequest({ message: 'Não pode haver mais de uma aula na mesma data.' })
+      if ((dateChanged || changedWeekday) && !justification)
+        return response.badRequest({
+          message:
+            'Informe uma justificativa ao alterar a data da aula ou transferi-la para outro dia da semana.',
+        })
+      if (lessonTime && !isValidLessonTime(lessonTime))
+        return response.badRequest({ message: 'Informe um horário válido para a aula.' })
+      if (content.length > 10000)
+        return response.badRequest({
+          message: 'O conteúdo da lição deve ter no máximo 10.000 caracteres.',
+        })
+      if (seenDates.has(date))
+        return response.badRequest({ message: 'Não pode haver mais de uma aula na mesma data.' })
       seenDates.add(date)
-      if (teacherId && !(await db.from('teachers').where('id', teacherId).where('congregation_id', congregationId).whereNull('deleted_at').first())) {
+      if (
+        teacherId &&
+        !(await db
+          .from('teachers')
+          .where('id', teacherId)
+          .where('congregation_id', congregationId)
+          .whereNull('deleted_at')
+          .first())
+      ) {
         return response.badRequest({ message: 'Selecione um professor válido desta congregação.' })
       }
-      normalized.push({ id: preservedId || id('schedule'), congregation_id: congregationId, class_id: String(params.id), lesson_date: date, title, teacher_id: teacherId || null, justification: justification || null, content: content || null, lesson_time: lessonTime || null })
+      normalized.push({
+        id: preservedId || id('schedule'),
+        congregation_id: congregationId,
+        class_id: String(params.id),
+        lesson_date: date,
+        title,
+        teacher_id: teacherId || null,
+        justification: justification || null,
+        content: content || null,
+        lesson_time: lessonTime || null,
+      })
     }
     await db.transaction(async (trx) => {
-      await trx.from('discipleship_schedule').where('class_id', params.id).where('congregation_id', congregationId).delete()
+      await trx
+        .from('discipleship_schedule')
+        .where('class_id', params.id)
+        .where('congregation_id', congregationId)
+        .delete()
       if (normalized.length) await trx.table('discipleship_schedule').multiInsert(normalized)
     })
-    await writeAuditLog(db, request, { action: 'discipleship_schedule.update', entityType: 'class', entityId: String(params.id), details: { lessonCount: normalized.length } })
+    await writeAuditLog(db, request, {
+      action: 'discipleship_schedule.update',
+      entityType: 'class',
+      entityId: String(params.id),
+      details: { lessonCount: normalized.length },
+    })
     return response.ok(await getState(congregationId))
   }
 
@@ -962,19 +1116,33 @@ export default class SchoolController {
     if (!classRow) return response.notFound({ message: 'Turma não encontrada nesta congregação.' })
 
     const [congregation, lessonRows, cycleRows] = await Promise.all([
-      db.from('congregations')
+      db
+        .from('congregations')
         .select('id', 'name', 'area', 'sector', 'logo_data', 'justification_contact')
         .where('id', congregationId)
         .first(),
-      db.from('discipleship_schedule as schedule')
+      db
+        .from('discipleship_schedule as schedule')
         .leftJoin('teachers as teacher', 'teacher.id', 'schedule.teacher_id')
         .leftJoin('discipleship_lessons as catalog', 'catalog.title', 'schedule.title')
         .leftJoin('discipleship_cycles as cycle', 'cycle.id', 'catalog.cycle_id')
-        .select('schedule.lesson_date', 'schedule.lesson_time', 'schedule.title', 'schedule.justification', 'teacher.name as teacher_name', 'cycle.id as cycle_id', 'cycle.name as cycle_name', 'cycle.color as cycle_color')
+        .select(
+          'schedule.lesson_date',
+          'schedule.lesson_time',
+          'schedule.title',
+          'schedule.justification',
+          'teacher.name as teacher_name',
+          'cycle.id as cycle_id',
+          'cycle.name as cycle_name',
+          'cycle.color as cycle_color'
+        )
         .where('schedule.class_id', params.id)
         .where('schedule.congregation_id', congregationId)
         .orderBy('schedule.lesson_date', 'asc'),
-      db.from('discipleship_cycles').select('id', 'name', 'color', 'position').orderBy('position', 'asc'),
+      db
+        .from('discipleship_cycles')
+        .select('id', 'name', 'color', 'position')
+        .orderBy('position', 'asc'),
     ])
 
     return response.ok({
@@ -992,7 +1160,12 @@ export default class SchoolController {
         lessonWeekday: Number(classRow.lesson_weekday ?? 0),
         lessonTime: String(classRow.lesson_time || '09:00'),
       },
-      cycles: cycleRows.map((cycle) => ({ id: String(cycle.id), name: cycle.name, color: cycle.color, position: Number(cycle.position) })),
+      cycles: cycleRows.map((cycle) => ({
+        id: String(cycle.id),
+        name: cycle.name,
+        color: cycle.color,
+        position: Number(cycle.position),
+      })),
       lessons: lessonRows.map((lesson) => ({
         date: normalizeDateForClient(lesson.lesson_date),
         time: String(lesson.lesson_time || classRow.lesson_time || '09:00'),
@@ -1007,7 +1180,7 @@ export default class SchoolController {
   }
 
   async createStudent({ request, response }: HttpContext) {
-    const payload = request.body() as StudentPayload
+    const payload = await request.validateUsing(studentValidator)
     const name = safeString(payload.name)
     const congregationId = getCongregationId(request)
 
@@ -1092,8 +1265,7 @@ export default class SchoolController {
   }
 
   async assignStudentToClass({ request, response }: HttpContext) {
-    const classId = safeString(request.input('classId'))
-    const studentId = safeString(request.input('studentId'))
+    const { classId, studentId } = await request.validateUsing(classStudentLinkValidator)
     const congregationId = getCongregationId(request)
 
     if (!classId || !studentId) {
@@ -1142,8 +1314,7 @@ export default class SchoolController {
   }
 
   async removeStudentFromClass({ request, response }: HttpContext) {
-    const classId = safeString(request.input('classId'))
-    const studentId = safeString(request.input('studentId'))
+    const { classId, studentId } = await request.validateUsing(classStudentLinkValidator)
     const congregationId = getCongregationId(request)
 
     if (!classId || !studentId) {
@@ -1182,9 +1353,10 @@ export default class SchoolController {
   }
 
   async createTeacher({ request, response }: HttpContext) {
-    const name = safeString(request.input('name'))
-    const phone = safeString(request.input('phone'))
-    const gender = safeString(request.input('gender')) || 'male'
+    const payload = await request.validateUsing(teacherValidator)
+    const name = safeString(payload.name)
+    const phone = safeString(payload.phone)
+    const gender = payload.gender || 'male'
     const congregationId = getCongregationId(request)
 
     if (!name) {
@@ -1216,13 +1388,27 @@ export default class SchoolController {
   }
 
   async updateTeacher({ request, params, response }: HttpContext) {
+    const { gender } = await request.validateUsing(teacherGenderValidator)
     const congregationId = getCongregationId(request)
-    const existing = await db.from('teachers').where('id', params.id).where('congregation_id', congregationId).whereNull('deleted_at').first()
-    if (!existing) return response.notFound({ message: 'Professor não encontrado nesta congregação.' })
-    const gender = safeString(request.input('gender'))
-    if (!['male', 'female'].includes(gender)) return response.badRequest({ message: 'Selecione masculino ou feminino.' })
-    await db.from('teachers').where('id', params.id).where('congregation_id', congregationId).update({ gender, updated_at: new Date() })
-    await writeAuditLog(db, request, { action: 'teacher.update_gender', entityType: 'teacher', entityId: String(params.id), details: { gender } })
+    const existing = await db
+      .from('teachers')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .whereNull('deleted_at')
+      .first()
+    if (!existing)
+      return response.notFound({ message: 'Professor não encontrado nesta congregação.' })
+    await db
+      .from('teachers')
+      .where('id', params.id)
+      .where('congregation_id', congregationId)
+      .update({ gender, updated_at: new Date() })
+    await writeAuditLog(db, request, {
+      action: 'teacher.update_gender',
+      entityType: 'teacher',
+      entityId: String(params.id),
+      details: { gender },
+    })
     return response.ok(await getState(congregationId))
   }
 
@@ -1252,7 +1438,7 @@ export default class SchoolController {
   }
 
   async saveAttendance({ request, response }: HttpContext) {
-    const payload = request.body() as AttendancePayload & { id?: string }
+    const payload = await request.validateUsing(attendanceValidator)
     const attendanceId = safeString(payload.id) || id('attendance')
     const classId = safeString(payload.classId)
     const lessonName = safeString(payload.lessonName)
@@ -1348,7 +1534,7 @@ export default class SchoolController {
       const normalizedEntries = entries
         .map((entry) => {
           const studentId = safeString(entry.studentId)
-          const status = safeString(entry.status) as AttendanceStatus
+          const status: AttendanceStatus = entry.status
           const note = safeString(entry.note)
 
           if (!studentId || !VALID_STATUSES.includes(status)) {
@@ -1370,7 +1556,7 @@ export default class SchoolController {
         .select('student_id')
         .where('class_id', classId)
         .whereNull('deleted_at')
-      const validStudentIds = new Set(classStudentRows.map((row: any) => String(row.student_id)))
+      const validStudentIds = new Set(classStudentRows.map((row) => String(row.student_id)))
       if (normalizedEntries.some((entry) => !validStudentIds.has(entry.student_id))) {
         throw new Error('Os participantes da chamada devem estar vinculados à turma selecionada.')
       }

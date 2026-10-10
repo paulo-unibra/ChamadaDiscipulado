@@ -4,7 +4,9 @@ import db from '@adonisjs/lucid/services/db'
 export default class extends BaseSchema {
   async up() {
     try {
-      await db.rawQuery('ALTER TABLE `google_forms_integrations` ADD COLUMN `chatgpt_api_key` TEXT NULL')
+      await db.rawQuery(
+        'ALTER TABLE `google_forms_integrations` ADD COLUMN `chatgpt_api_key` TEXT NULL'
+      )
     } catch (error) {
       if (
         typeof error !== 'object' ||

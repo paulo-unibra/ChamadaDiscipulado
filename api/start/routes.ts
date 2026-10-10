@@ -8,6 +8,8 @@
 */
 
 import router from '@adonisjs/core/services/router'
+import db from '@adonisjs/lucid/services/db'
+import logger from '@adonisjs/core/services/logger'
 import { middleware } from './kernel.js'
 
 const SchoolController = () => import('#controllers/school_controller')
@@ -19,12 +21,24 @@ router.get('/', async () => {
   return {
     app: 'chamada-discipulado-api',
     status: 'ok',
-    database: 'mysql/discipulado',
   }
 })
 
-router.post('/auth/login', [AuthController, 'login'])
-router.post('/auth/verify', [AuthController, 'verify'])
+router.get('/health', async ({ request, response }) => {
+  try {
+    await db.rawQuery('SELECT 1')
+    return response.ok({ status: 'ok', database: 'ok' })
+  } catch (error) {
+    logger.error(
+      { err: error, requestId: request.header('x-request-id') },
+      'Health check database query failed'
+    )
+    return response.serviceUnavailable({ status: 'unavailable', database: 'unavailable' })
+  }
+})
+
+router.post('/auth/login', [AuthController, 'login']).use(middleware.rateLimit())
+router.post('/auth/verify', [AuthController, 'verify']).use(middleware.rateLimit())
 router.get('/auth/session', [AuthController, 'session']).use(middleware.requireAuth())
 router.post('/auth/password', [AuthController, 'changePassword']).use(middleware.requireAuth())
 router.post('/auth/logout', [AuthController, 'logout']).use(middleware.requireAuth())
@@ -37,7 +51,10 @@ router
     router.put('/integrations/chatgpt', [IntegrationsController, 'saveChatGpt'])
     router.get('/integrations/deepseek', [IntegrationsController, 'showDeepSeek'])
     router.put('/integrations/deepseek', [IntegrationsController, 'saveDeepSeek'])
-    router.get('/integrations/google/forms/:formId/questions', [IntegrationsController, 'questions'])
+    router.get('/integrations/google/forms/:formId/questions', [
+      IntegrationsController,
+      'questions',
+    ])
     router.get('/integrations/google/forms/sent-items', [IntegrationsController, 'sentItems'])
     router.post('/integrations/google/forms/mark-sent', [IntegrationsController, 'markSent'])
     router.get('/school/state', [SchoolController, 'state'])
@@ -53,7 +70,10 @@ router
     router.put('/school/classes/:id/scale', [SchoolController, 'saveClassScale'])
     router.get('/school/classes/:id/scale/export', [SchoolController, 'exportClassScale'])
     router.get('/school/quizzes', [QuizzesController, 'list'])
-    router.post('/school/classes/:classId/scale/:scheduleId/quizzes', [QuizzesController, 'generate'])
+    router.post('/school/classes/:classId/scale/:scheduleId/quizzes', [
+      QuizzesController,
+      'generate',
+    ])
     router.put('/school/classes/:id/start-date', [SchoolController, 'updateClassStartDate'])
 
     router.post('/school/students', [SchoolController, 'createStudent'])

@@ -17,14 +17,14 @@ webSocketServer.on('connection', (socket, request) => {
 })
 
 export function attachQuizWebSocketServer(server: NodeHttpServer) {
-  server.on('upgrade', (request: IncomingMessage, socket, head) => {
+  server.on('upgrade', async (request: IncomingMessage, socket, head) => {
     const url = new URL(request.url || '/', 'http://localhost')
     if (url.pathname !== '/ws') return socket.destroy()
     const offeredProtocols = request.headers['sec-websocket-protocol'] || ''
     const protocols = offeredProtocols.split(',').map((protocol) => protocol.trim())
     const authToken = protocols.find((protocol) => protocol !== 'chamada-discipulado') || ''
     const congregationId = url.searchParams.get('congregationId') || ''
-    if (!authService.isAuthenticated(authToken) || !congregationId) return socket.destroy()
+    if (!(await authService.verifyToken(authToken)) || !congregationId) return socket.destroy()
     webSocketServer.handleUpgrade(request, socket, head, (webSocket) => {
       webSocketServer.emit('connection', webSocket, request)
     })

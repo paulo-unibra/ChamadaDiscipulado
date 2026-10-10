@@ -2,8 +2,9 @@ import { randomUUID } from 'node:crypto'
 import type { HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
 import { getCongregationId } from '#services/google_forms_service'
-import { createQuizQuestions, getAiApiKey, type QuizAiProvider } from '#services/chatgpt_service'
-import { publishQuizUpdate } from '#services/quiz_websocket_service'
+import { getAiApiKey, type QuizAiProvider } from '#services/chatgpt_service'
+import GenerateQuizJob from '#jobs/generate_quiz_job'
+import { generateQuizValidator, quizListValidator } from '#validators/quiz_validator'
 
 function parseQuestions(value: unknown) {
   if (typeof value === 'string') {
@@ -16,7 +17,20 @@ function parseQuestions(value: unknown) {
   return value || []
 }
 
-function serializeQuiz(row: any) {
+type QuizDbRow = {
+  id: string
+  class_id: string
+  schedule_id: string
+  lesson_title: string
+  provider: string | null
+  question_count: number
+  status: string
+  questions: unknown
+  error_message: string | null
+  created_at: Date
+}
+
+function serializeQuiz(row: QuizDbRow) {
   return {
     id: String(row.id),
     classId: String(row.class_id),
@@ -34,11 +48,21 @@ function serializeQuiz(row: any) {
 export default class QuizzesController {
   async list({ request, response }: HttpContext) {
     const congregationId = getCongregationId(request)
+    const { filters } = await quizListValidator.validate({ filters: request.qs() })
+    const page = filters.page ?? 1
+    const limit = filters.limit ?? 25
     const rows = await db
       .from('discipleship_quizzes')
       .where('congregation_id', congregationId)
       .orderBy('created_at', 'desc')
-    return response.ok({ quizzes: rows.map(serializeQuiz) })
+      .orderBy('id', 'desc')
+      .offset((page - 1) * limit)
+      .limit(limit)
+    const [{ total }] = await db
+      .from('discipleship_quizzes')
+      .where('congregation_id', congregationId)
+      .count('* as total')
+    return response.ok({ quizzes: rows.map(serializeQuiz), page, limit, total: Number(total) })
   }
 
   async generate({ request, params, response }: HttpContext) {
@@ -58,19 +82,18 @@ export default class QuizzesController {
       .first()
     if (!lesson) return response.notFound({ message: 'Lição não encontrada nesta escala.' })
     const content = typeof lesson.content === 'string' ? lesson.content.trim() : ''
-    if (!content) return response.badRequest({ message: 'Adicione o conteúdo da lição antes de gerar um questionário.' })
-    const requestedProvider = request.input('provider') ?? 'chatgpt'
-    if (requestedProvider !== 'chatgpt' && requestedProvider !== 'deepseek') {
-      return response.badRequest({ message: 'Selecione uma integração de IA válida.' })
-    }
-    const provider = requestedProvider as QuizAiProvider
+    if (!content)
+      return response.badRequest({
+        message: 'Adicione o conteúdo da lição antes de gerar um questionário.',
+      })
+    const { provider: requestedProvider = 'chatgpt', questionCount } =
+      await request.validateUsing(generateQuizValidator)
+    const provider: QuizAiProvider = requestedProvider
     const configuredApiKey = await getAiApiKey(congregationId, provider)
     if (!configuredApiKey) {
-      return response.badRequest({ message: `Configure a integração do ${provider === 'deepseek' ? 'DeepSeek' : 'ChatGPT'} antes de gerar questionários.` })
-    }
-    const questionCount = Number(request.input('questionCount'))
-    if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 30) {
-      return response.badRequest({ message: 'Escolha de 1 a 30 questões.' })
+      return response.badRequest({
+        message: `Configure a integração do ${provider === 'deepseek' ? 'DeepSeek' : 'ChatGPT'} antes de gerar questionários.`,
+      })
     }
     const jobId = randomUUID()
     const now = new Date()
@@ -100,61 +123,16 @@ export default class QuizzesController {
       error: '',
       createdAt: now,
     }
-    void this.generateInBackground({
-      jobId,
-      congregationId,
-      apiKey: configuredApiKey,
-      provider,
-      lessonTitle: lesson.title,
-      lessonContent: content,
-      questionCount,
-    }).catch(() => undefined)
-    return response.accepted({ quiz: pendingQuiz })
-  }
-
-  private async generateInBackground({
-    jobId,
-    congregationId,
-    apiKey,
-    provider,
-    lessonTitle,
-    lessonContent,
-    questionCount,
-  }: {
-    jobId: string
-    congregationId: string
-    apiKey: string
-    provider: QuizAiProvider
-    lessonTitle: string
-    lessonContent: string
-    questionCount: number
-  }) {
     try {
-      const questions = await createQuizQuestions(provider, apiKey, lessonTitle, lessonContent, questionCount)
-      await db
-        .from('discipleship_quizzes')
-        .where('id', jobId)
-        .where('congregation_id', congregationId)
-        .update({ status: 'completed', questions: JSON.stringify(questions), updated_at: new Date() })
-      const row = await db
-        .from('discipleship_quizzes')
-        .where('id', jobId)
-        .where('congregation_id', congregationId)
-        .first()
-      if (row) publishQuizUpdate(congregationId, serializeQuiz(row))
+      await GenerateQuizJob.dispatch({ quizId: jobId }).toQueue('quiz-generation')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Não foi possível gerar o questionário.'
-      await db
-        .from('discipleship_quizzes')
-        .where('id', jobId)
-        .where('congregation_id', congregationId)
-        .update({ status: 'failed', error_message: message.slice(0, 2000), updated_at: new Date() })
-      const row = await db
-        .from('discipleship_quizzes')
-        .where('id', jobId)
-        .where('congregation_id', congregationId)
-        .first()
-      if (row) publishQuizUpdate(congregationId, serializeQuiz(row))
+      await db.from('discipleship_quizzes').where('id', jobId).where('status', 'pending').update({
+        status: 'failed',
+        error_message: 'Não foi possível enviar a geração para a fila.',
+        updated_at: new Date(),
+      })
+      throw error
     }
+    return response.accepted({ quiz: pendingQuiz })
   }
 }

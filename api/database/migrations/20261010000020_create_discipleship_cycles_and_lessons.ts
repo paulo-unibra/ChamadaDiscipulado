@@ -37,7 +37,13 @@ export default class extends BaseSchema {
     const result: any = await db.rawQuery(
       `SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${tableName}' LIMIT 1`
     )
-    const rows = Array.isArray(result?.[0]) ? result[0] : Array.isArray(result?.rows) ? result.rows : Array.isArray(result) ? result : []
+    const rows = Array.isArray(result?.[0])
+      ? result[0]
+      : Array.isArray(result?.rows)
+        ? result.rows
+        : Array.isArray(result)
+          ? result
+          : []
     return rows.length > 0
   }
 
@@ -60,13 +66,20 @@ export default class extends BaseSchema {
         table.integer('position').notNullable()
         table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())
         table.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(this.now())
-        table.foreign('cycle_id').references('id').inTable('discipleship_cycles').onDelete('CASCADE').onUpdate('CASCADE')
+        table
+          .foreign('cycle_id')
+          .references('id')
+          .inTable('discipleship_cycles')
+          .onDelete('CASCADE')
+          .onUpdate('CASCADE')
       })
     }
 
     for (const cycle of cycles) {
       if (!(await db.from('discipleship_cycles').where('id', cycle.id).first())) {
-        await db.table('discipleship_cycles').insert({ ...cycle, created_at: new Date(), updated_at: new Date() })
+        await db
+          .table('discipleship_cycles')
+          .insert({ ...cycle, created_at: new Date(), updated_at: new Date() })
       }
     }
     for (const [index, [title, cycleId]] of lessons.entries()) {

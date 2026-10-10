@@ -33,6 +33,7 @@ server.use([
  * requests with a registered route.
  */
 router.use([() => import('@adonisjs/core/bodyparser_middleware')])
+router.use([() => import('@adonisjs/auth/initialize_auth_middleware')])
 
 /**
  * Named middleware collection must be explicitly assigned to
@@ -40,4 +41,5 @@ router.use([() => import('@adonisjs/core/bodyparser_middleware')])
  */
 export const middleware = router.named({
   requireAuth: () => import('#middleware/require_auth_middleware'),
+  rateLimit: () => import('#middleware/rate_limit_middleware'),
 })

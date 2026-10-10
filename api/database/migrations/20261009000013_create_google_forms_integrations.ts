@@ -2,7 +2,12 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 
 export default class extends BaseSchema {
   private isTableExistsError(error: unknown) {
-    return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_TABLE_EXISTS_ERROR'
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'ER_TABLE_EXISTS_ERROR'
+    )
   }
 
   async up() {

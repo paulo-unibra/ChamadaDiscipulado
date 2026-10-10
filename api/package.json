@@ -4,8 +4,13 @@
   "private": true,
   "type": "module",
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "start": "node bin/server.js",
+    "worker": "node ace queue:work --queue=quiz-generation",
+    "migrate": "node ace migration:run --force",
     "build": "node ace build",
     "dev": "node ace serve --hmr",
     "test": "node ace test",
@@ -15,6 +20,7 @@
   },
   "imports": {
     "#controllers/*": "./app/controllers/*.js",
+    "#jobs/*": "./app/jobs/*.js",
     "#exceptions/*": "./app/exceptions/*.js",
     "#models/*": "./app/models/*.js",
     "#mails/*": "./app/mails/*.js",
@@ -56,6 +62,7 @@
     "@adonisjs/core": "^6.18.0",
     "@adonisjs/cors": "^2.2.1",
     "@adonisjs/lucid": "^21.6.1",
+    "@adonisjs/queue": "^0.3.0",
     "@vinejs/vine": "^3.0.1",
     "luxon": "^3.7.2",
     "mysql2": "^3.22.3",

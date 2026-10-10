@@ -12,6 +12,7 @@ import { DialogAccessibility } from './DialogAccessibility';
 import { QuizCountDialog, QuizViewDialog, ScaleMessageDialog } from './QuizDialogs';
 import { ClassScaleDialog, LessonContentDialog, LessonEditDialog } from './ScaleDialogs';
 const OverviewPage = React.lazy(() => import('./OverviewPage'));
+const PermissionsPage = React.lazy(() => import('./PermissionsPage'));
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://146.190.138.248:2000';
 const DEFAULT_CONGREGATION_ID = 'cong-zumbi-pacheco-1';
@@ -22,7 +23,7 @@ const menu = [
   { label: 'Discipulado', icon: BookOpen, children: [{ label: 'Turmas', path: 'turmas' }, { label: 'Aulas', path: 'aulas' }, { label: 'Professores', path: 'professores' }, { label: 'Escala', path: 'escala' }] },
   { label: 'Operacional', icon: ClipboardCheck, children: [{ label: 'Chamadas', path: 'chamadas' }] },
   { label: 'Relatórios', icon: ChartNoAxesColumn, children: [{ label: 'Visão geral', path: 'relatorios' }, { label: 'Frequência', path: 'frequencia' }] },
-  { label: 'Configurações', icon: Settings, children: [{ label: 'Congregação', path: 'congregacao' }, { label: 'Integrações', path: 'integracoes' }] },
+  { label: 'Configurações', icon: Settings, children: [{ label: 'Congregação', path: 'congregacao' }, { label: 'Integrações', path: 'integracoes' }, { label: 'Permissões', path: 'permissoes' }] },
 ];
 const today = () => new Date().toISOString().slice(0, 10);
 const nearestWeekday = (weekday, baseDate = new Date()) => { const date = baseDate instanceof Date ? new Date(Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate())) : new Date(`${baseDate}T12:00:00Z`), current = date.getUTCDay(), forward = (weekday - current + 7) % 7, backward = forward === 0 ? 0 : forward - 7, offset = Math.abs(backward) < Math.abs(forward) ? backward : forward; date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); };
@@ -331,7 +332,7 @@ function App({ token, setToken, activeCongregationId, setActiveCongregationId })
   const activeTitle = menu.flatMap((group) => [group, ...(group.children || [])]).find((item) => item.path === page)?.label || 'Visão geral';
   const request = async (path, method, body) => { const r = await apiFetch(path, { method, ...(body ? { body: JSON.stringify(body) } : {}) }); const payload = await r.json(); if (!r.ok) throw new Error(payload.message || 'Não foi possível concluir a operação.'); applyState(payload); return payload; };
   const notify = async (fn) => { try { setError(''); await fn(); } catch (e) { if (!isAbortError(e)) setError(e.message || 'Ocorreu um erro.'); } };
-  const pageTitles = { inicio: ['Visão geral', 'Acompanhe a atividade da campanha em um só lugar.'], congregacao: ['Congregação', 'Edite os dados e a identidade visual da congregação selecionada.'], 'novos-convertidos': ['Novos convertidos', 'Acompanhe as pessoas que aceitaram a fé em cada ação evangelística.'], turmas: ['Turmas', 'Crie turmas e organize os participantes da campanha.'], aulas: ['Aulas do discipulado', 'Conteúdo organizado por ciclos de aprendizado.'], professores: ['Professores', 'Cadastre a equipe e os responsáveis por cada encontro.'], escala: ['Escala de aulas', 'Planeje as aulas dominicais e os professores da turma atual.'], chamadas: ['Chamadas', 'Registre e consulte a participação nos encontros.'], relatorios: ['Relatórios', 'Indicadores gerais para acompanhamento da campanha.'], frequencia: ['Frequência', 'Consulte a frequência por turma e período.'], integracoes: ['Integrações', 'Configure links pré-preenchidos para seus formulários.'] };
+  const pageTitles = { inicio: ['Visão geral', 'Acompanhe a atividade da campanha em um só lugar.'], congregacao: ['Congregação', 'Edite os dados e a identidade visual da congregação selecionada.'], permissoes: ['Permissões', 'Defina o acesso aos recursos por perfil nesta congregação.'], 'novos-convertidos': ['Novos convertidos', 'Acompanhe as pessoas que aceitaram a fé em cada ação evangelística.'], turmas: ['Turmas', 'Crie turmas e organize os participantes da campanha.'], aulas: ['Aulas do discipulado', 'Conteúdo organizado por ciclos de aprendizado.'], professores: ['Professores', 'Cadastre a equipe e os responsáveis por cada encontro.'], escala: ['Escala de aulas', 'Planeje as aulas dominicais e os professores da turma atual.'], chamadas: ['Chamadas', 'Registre e consulte a participação nos encontros.'], relatorios: ['Relatórios', 'Indicadores gerais para acompanhamento da campanha.'], frequencia: ['Frequência', 'Consulte a frequência por turma e período.'], integracoes: ['Integrações', 'Configure links pré-preenchidos para seus formulários.'] };
   const [title, subtitle] = pageTitles[page] || pageTitles.inicio;
   const nav = (path) => { setPage(path); setOpenGroup(menu.find((group) => group.children?.some((child) => child.path === path))?.label || ''); setMobileMenu(false); setFlyoutMenu(null); setRecentRoutes((current) => [path, ...current.filter((route) => route !== path && !pinnedRoutes.includes(route))].slice(0, 6)); window.history.pushState({}, '', `/${path === 'inicio' ? '' : path}`); };
   const togglePin = (path) => { setPinnedRoutes((current) => current.includes(path) ? current.filter((route) => route !== path) : [...current, path]); setRecentRoutes((current) => current.filter((route) => route !== path)); };
@@ -712,7 +713,7 @@ function App({ token, setToken, activeCongregationId, setActiveCongregationId })
         {['relatorios', 'frequencia'].includes(page) && activeCongregation && <header className="report-brand">{activeCongregation.logoData && <img src={activeCongregation.logoData} alt="Logo"/>}<div><b>{activeCongregation.name}</b><span>{[activeCongregation.area && `Área ${activeCongregation.area}`, activeCongregation.sector && `Setor ${activeCongregation.sector}`].filter(Boolean).join(' · ')}</span></div></header>}
          {page === 'integracoes' && <div className="integration-public-note">Cole o link público do formulário (<code>/forms/d/e/…/viewform</code>) ou o ID público. Os campos são lidos da página pública; não é necessária permissão de edição.</div>}
         {unsentIntegrationRows.length > 0 && <section className="panel form-actions-panel"><PanelHeading icon={FileInput} title="Enviar itens ao Google Forms" description="Abra o formulário pré-preenchido e confirme aqui depois de enviar a resposta."/><div className="form-action-list">{unsentIntegrationRows.map((row) => { const key = `${row.sectionId}:${row.recordId}`; return <div className="form-action-row" key={key}><div className="form-action-name"><b>{row.title}</b><small>{integrationSections.find((section) => section.id === row.sectionId)?.title}</small></div><div className="form-action-buttons"><button className="button secondary form-open-button" onClick={() => openPrefilledForm(row)} title="Abrir formulário pré-preenchido"><FileInput size={16}/><span>Abrir formulário</span></button>{formOpenedItems[key] && <button className="button primary form-confirm-button" onClick={() => notify(() => markIntegrationItemSent(row))}><CircleCheck size={16}/><span>Marcar enviado</span></button>}</div></div>; })}</div></section>}
-        {page === 'integracoes' && <>
+         {page === 'integracoes' && <>
           <AiIntegrationPanel name="ChatGPT" icon={Bot} integration={chatGpt}/>
           <AiIntegrationPanel name="DeepSeek" icon={Waves} integration={deepSeek}/>
           <section className="panel integration-panel">
@@ -780,7 +781,8 @@ function App({ token, setToken, activeCongregationId, setActiveCongregationId })
             </article>)}
             <div className="integration-footer"><span className="integration-notice">{integrationMessage}</span><button className="button primary" disabled={integrationBusy} onClick={saveIntegration}><Save size={16} />{integrationBusy ? 'Salvando…' : 'Salvar configuração'}</button></div>
           </section>
-        </>}
+         </>}
+         {page === 'permissoes' && <React.Suspense fallback={<p role="status">Carregando permissões…</p>}><PermissionsPage key={activeCongregationId} congregationId={activeCongregationId} congregationName={activeCongregation?.name}/></React.Suspense>}
         {page === 'inicio' && <React.Suspense fallback={<p role="status">Carregando visão geral…</p>}><OverviewPage data={data} stats={stats} records={records} nav={nav} reload={reload} formatDate={formatDate}/></React.Suspense>}
         {page === 'novos-convertidos' && <>
           <section className="panel">

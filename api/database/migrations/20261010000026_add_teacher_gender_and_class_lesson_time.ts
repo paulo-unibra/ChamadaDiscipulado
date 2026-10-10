@@ -3,10 +3,14 @@ import db from '@adonisjs/lucid/services/db'
 
 export default class extends BaseSchema {
   private isDuplicateColumnError(error: unknown) {
-    return typeof error === 'object' && error !== null && (
-      ('code' in error && error.code === 'ER_DUP_FIELDNAME') ||
-      ('errno' in error && error.errno === 1060) ||
-      ('message' in error && typeof error.message === 'string' && /duplicate column name/i.test(error.message))
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      (('code' in error && error.code === 'ER_DUP_FIELDNAME') ||
+        ('errno' in error && error.errno === 1060) ||
+        ('message' in error &&
+          typeof error.message === 'string' &&
+          /duplicate column name/i.test(error.message)))
     )
   }
 

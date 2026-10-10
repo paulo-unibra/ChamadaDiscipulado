@@ -10,6 +10,22 @@ export type QuizQuestion = {
 
 export type QuizAiProvider = 'chatgpt' | 'deepseek'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isQuizQuestion(value: unknown): value is QuizQuestion {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.question === 'string' &&
+    Array.isArray(value.options) &&
+    value.options.length === 4 &&
+    value.options.every((option) => typeof option === 'string') &&
+    typeof value.correctAnswer === 'string' &&
+    (value.explanation === undefined || typeof value.explanation === 'string')
+  )
+}
+
 const providerConfig = {
   chatgpt: {
     column: 'chatgpt_api_key',
@@ -25,7 +41,10 @@ const providerConfig = {
     model: 'deepseek-chat',
     label: 'DeepSeek',
   },
-} satisfies Record<QuizAiProvider, { column: string; purpose: string; endpoint: string; model: string; label: string }>
+} satisfies Record<
+  QuizAiProvider,
+  { column: string; purpose: string; endpoint: string; model: string; label: string }
+>
 
 export async function getAiApiKey(congregationId: string, provider: QuizAiProvider) {
   const config = providerConfig[provider]
@@ -39,7 +58,11 @@ export async function getAiApiKey(congregationId: string, provider: QuizAiProvid
   return encryption.decrypt<string>(encryptedApiKey, config.purpose) || ''
 }
 
-export async function saveAiApiKey(congregationId: string, provider: QuizAiProvider, value: unknown) {
+export async function saveAiApiKey(
+  congregationId: string,
+  provider: QuizAiProvider,
+  value: unknown
+) {
   const config = providerConfig[provider]
   if (typeof value !== 'string' || value.trim().length > 2000) {
     throw new Error('Informe um token válido de até 2.000 caracteres.')
@@ -67,11 +90,12 @@ export async function saveAiApiKey(congregationId: string, provider: QuizAiProvi
       updated_at: new Date(),
     })
   }
-  return { configured: Boolean(apiKey), apiKey }
+  return { configured: Boolean(apiKey) }
 }
 
 export const getChatGptApiKey = (congregationId: string) => getAiApiKey(congregationId, 'chatgpt')
-export const saveChatGptApiKey = (congregationId: string, value: unknown) => saveAiApiKey(congregationId, 'chatgpt', value)
+export const saveChatGptApiKey = (congregationId: string, value: unknown) =>
+  saveAiApiKey(congregationId, 'chatgpt', value)
 
 export async function createQuizQuestions(
   provider: QuizAiProvider,
@@ -84,7 +108,7 @@ export async function createQuizQuestions(
   const response = await fetch(config.endpoint, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     signal: AbortSignal.timeout(120_000),
@@ -105,40 +129,41 @@ export async function createQuizQuestions(
       ],
     }),
   })
-  const payload: any = await response.json().catch(() => ({}))
+  const responseBody: unknown = await response.json().catch(() => null)
+  const payload = isRecord(responseBody) ? responseBody : {}
   if (!response.ok) {
-    const message = payload?.error?.message
+    const providerError = isRecord(payload.error) ? payload.error : {}
+    const message = providerError.message
     throw new Error(
-      typeof message === 'string' ? message : `A API do ${config.label} respondeu com HTTP ${response.status}.`
+      typeof message === 'string'
+        ? message
+        : `A API do ${config.label} respondeu com HTTP ${response.status}.`
     )
   }
-  const raw = payload?.choices?.[0]?.message?.content
+  const choices = Array.isArray(payload.choices) ? payload.choices : []
+  const firstChoice = isRecord(choices[0]) ? choices[0] : {}
+  const assistantMessage = isRecord(firstChoice.message) ? firstChoice.message : {}
+  const raw = assistantMessage.content
   if (typeof raw !== 'string') throw new Error(`O ${config.label} não retornou o questionário.`)
-  let parsed: { questions?: unknown[] }
+  let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
     throw new Error(`O ${config.label} retornou um questionário em formato inválido.`)
   }
-  if (!Array.isArray(parsed.questions) || parsed.questions.length !== count) {
+  const questions = isRecord(parsed) && Array.isArray(parsed.questions) ? parsed.questions : null
+  if (!questions || questions.length !== count) {
     throw new Error(`O ${config.label} não retornou a quantidade de questões solicitada.`)
   }
-  return parsed.questions.map((item, index) => {
-    const question = item as Partial<QuizQuestion>
-    if (
-      typeof question.question !== 'string' ||
-      !Array.isArray(question.options) ||
-      question.options.length !== 4 ||
-      !question.options.every((option) => typeof option === 'string') ||
-      typeof question.correctAnswer !== 'string'
-    ) {
+  return questions.map((question, index) => {
+    if (!isQuizQuestion(question)) {
       throw new Error(`A questão ${index + 1} veio incompleta. Tente gerar novamente.`)
     }
     return {
       question: question.question,
       options: question.options,
       correctAnswer: question.correctAnswer,
-      explanation: typeof question.explanation === 'string' ? question.explanation : '',
+      explanation: question.explanation ?? '',
     }
   })
 }

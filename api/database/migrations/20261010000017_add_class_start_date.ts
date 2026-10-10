@@ -2,7 +2,9 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 
 export default class extends BaseSchema {
   private async hasStartDateColumn() {
-    const result: any = await this.schema.raw(`SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'classes' AND COLUMN_NAME = 'start_date' LIMIT 1`)
+    const result: any = await this.schema.raw(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'classes' AND COLUMN_NAME = 'start_date' LIMIT 1`
+    )
     const rows = Array.isArray(result) ? result[0] : result
     return Array.isArray(rows) && rows.length > 0
   }
@@ -25,7 +27,9 @@ export default class extends BaseSchema {
     const daysSinceSunday = now.getDay()
     const daysUntilSunday = (7 - daysSinceSunday) % 7
     const offset = daysSinceSunday < daysUntilSunday ? -daysSinceSunday : daysUntilSunday
-    const startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + offset)).toISOString().slice(0, 10)
+    const startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + offset))
+      .toISOString()
+      .slice(0, 10)
     await this.schema.raw(`UPDATE classes SET start_date = '${startDate}' WHERE start_date IS NULL`)
     if (await this.schema.hasTable('discipleship_schedule')) {
       const result: any = await this.schema.raw(`
@@ -34,27 +38,40 @@ export default class extends BaseSchema {
         INNER JOIN discipleship_schedule ds ON ds.class_id = c.id
         ORDER BY c.id, ds.lesson_date
       `)
-      const rows: any[] = Array.isArray(result?.[0]) ? result[0] : Array.isArray(result) ? result : []
+      const rows: any[] = Array.isArray(result?.[0])
+        ? result[0]
+        : Array.isArray(result)
+          ? result
+          : []
       const byClass = new Map<string, any[]>()
       for (const row of rows) {
         const classId = String(row.class_id)
         byClass.set(classId, [...(byClass.get(classId) || []), row])
       }
       for (const lessons of byClass.values()) {
-        const dateText = (value: unknown) => value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10)
+        const dateText = (value: unknown) =>
+          value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10)
         const firstScheduleDate = dateText(lessons[0].lesson_date)
         const classStartDate = dateText(lessons[0].start_date)
-        const dayShift = Math.round((new Date(`${classStartDate}T00:00:00Z`).getTime() - new Date(`${firstScheduleDate}T00:00:00Z`).getTime()) / 86_400_000)
+        const dayShift = Math.round(
+          (new Date(`${classStartDate}T00:00:00Z`).getTime() -
+            new Date(`${firstScheduleDate}T00:00:00Z`).getTime()) /
+            86_400_000
+        )
         if (!dayShift) continue
         for (const lesson of lessons) {
           const scheduleId = String(lesson.schedule_id).replace(/'/g, "''")
-          await this.schema.raw(`UPDATE discipleship_schedule SET lesson_date = DATE_ADD(lesson_date, INTERVAL 10000 DAY) WHERE id = '${scheduleId}'`)
+          await this.schema.raw(
+            `UPDATE discipleship_schedule SET lesson_date = DATE_ADD(lesson_date, INTERVAL 10000 DAY) WHERE id = '${scheduleId}'`
+          )
         }
         for (const lesson of lessons) {
           const shiftedDate = new Date(`${dateText(lesson.lesson_date)}T12:00:00Z`)
           shiftedDate.setUTCDate(shiftedDate.getUTCDate() + dayShift)
           const scheduleId = String(lesson.schedule_id).replace(/'/g, "''")
-          await this.schema.raw(`UPDATE discipleship_schedule SET lesson_date = '${shiftedDate.toISOString().slice(0, 10)}' WHERE id = '${scheduleId}'`)
+          await this.schema.raw(
+            `UPDATE discipleship_schedule SET lesson_date = '${shiftedDate.toISOString().slice(0, 10)}' WHERE id = '${scheduleId}'`
+          )
         }
       }
     }

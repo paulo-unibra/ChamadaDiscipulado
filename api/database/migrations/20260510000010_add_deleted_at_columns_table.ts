@@ -30,7 +30,8 @@ const UNIQUE_CONFIGS: UniqueConfig[] = [
     columns: ['attendance_record_id', 'student_id'],
     indexName: 'attendance_entries_attendance_record_id_student_id_unique',
     compositeIndexName: 'attent_record_student_deleted_unique',
-    legacyCompositeIndexName: 'attendance_entries_attendance_record_id_student_id_deleted_at_unique',
+    legacyCompositeIndexName:
+      'attendance_entries_attendance_record_id_student_id_deleted_at_unique',
     foreignKeys: [
       { column: 'attendance_record_id', refTable: 'attendance_records', refColumn: 'id' },
       { column: 'student_id', refTable: 'students', refColumn: 'id' },
@@ -41,7 +42,8 @@ const UNIQUE_CONFIGS: UniqueConfig[] = [
     columns: ['attendance_record_id', 'teacher_id'],
     indexName: 'attendance_teachers_attendance_record_id_teacher_id_unique',
     compositeIndexName: 'atttea_record_teacher_deleted_unique',
-    legacyCompositeIndexName: 'attendance_teachers_attendance_record_id_teacher_id_deleted_at_unique',
+    legacyCompositeIndexName:
+      'attendance_teachers_attendance_record_id_teacher_id_deleted_at_unique',
     foreignKeys: [
       { column: 'attendance_record_id', refTable: 'attendance_records', refColumn: 'id' },
       { column: 'teacher_id', refTable: 'teachers', refColumn: 'id' },
@@ -124,9 +126,7 @@ export default class extends BaseSchema {
         await this.dropForeignKeys(config.tableName)
 
         if (await this.hasIndex(config.tableName, indexToDrop)) {
-          await this.schema.raw(
-            `ALTER TABLE \`${config.tableName}\` DROP INDEX \`${indexToDrop}\``
-          )
+          await this.schema.raw(`ALTER TABLE \`${config.tableName}\` DROP INDEX \`${indexToDrop}\``)
         }
 
         if (!(await this.hasIndex(config.tableName, config.compositeIndexName))) {
