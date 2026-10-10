@@ -761,16 +761,18 @@ function App() {
     const pageWidth = document.internal.pageSize.getWidth(), pageHeight = document.internal.pageSize.getHeight();
     const margin = 14, gap = 12, columnWidth = (pageWidth - margin * 2 - gap) / 2;
     const logo = activeCongregation?.logoData || '';
-    let printLogo = '';
+    let printLogo = '', printLogoWidth = 0, printLogoHeight = 0;
     if (logo) {
       try {
         const image = await new Promise((resolve, reject) => { const source = new Image(); source.onload = () => resolve(source); source.onerror = reject; source.src = logo; });
         const canvas = window.document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
         canvas.getContext('2d').drawImage(image, 0, 0); printLogo = canvas.toDataURL('image/png');
+        const logoScale = Math.min(20 / image.width, 20 / image.height);
+        printLogoWidth = image.width * logoScale; printLogoHeight = image.height * logoScale;
       } catch {}
     }
     const drawHeader = () => {
-      if (printLogo) document.addImage(printLogo, 'PNG', 14, 9, 20, 20);
+      if (printLogo) document.addImage(printLogo, 'PNG', 14 + (20 - printLogoWidth) / 2, 9 + (20 - printLogoHeight) / 2, printLogoWidth, printLogoHeight);
       const textX = printLogo ? 39 : 14;
       document.setFont('helvetica', 'bold'); document.setFontSize(17); document.setTextColor(18, 47, 33);
       document.text(activeQuiz.lessonTitle, textX, 17, { maxWidth: pageWidth - textX - margin });
@@ -778,22 +780,28 @@ function App() {
       document.text(activeCongregation?.name || 'Campanha Evangelizadora', textX, 23);
       document.setDrawColor(218, 229, 221); document.line(margin, 31, pageWidth - margin, 31);
     };
-    const columns = [activeQuiz.questions.slice(0, Math.ceil(activeQuiz.questions.length / 2)), activeQuiz.questions.slice(Math.ceil(activeQuiz.questions.length / 2))];
     drawHeader();
-    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
-      let x = margin + columnIndex * (columnWidth + gap), y = 39;
-      for (let index = 0; index < columns[columnIndex].length; index += 1) {
-        const question = columns[columnIndex][index];
-        document.setFont('helvetica', 'bold'); document.setFontSize(10.5); document.setTextColor(22, 41, 31);
-        const questionLines = document.splitTextToSize(`${columnIndex === 0 ? index + 1 : columns[0].length + index + 1}. ${question.question}`, columnWidth);
-        const optionLines = question.options.flatMap((option) => document.splitTextToSize(option, columnWidth - 3));
-        const blockHeight = questionLines.length * 5 + optionLines.length * 4.4 + 7;
-        if (y + blockHeight > pageHeight - margin) { document.addPage('a4', 'landscape'); drawHeader(); y = 39; }
-        document.text(questionLines, x, y); y += questionLines.length * 5 + 2;
-        document.setFont('helvetica', 'normal'); document.setFontSize(9); document.setTextColor(57, 69, 62);
-        for (const option of question.options) { const lines = document.splitTextToSize(option, columnWidth - 3); document.text(lines, x + 3, y); y += lines.length * 4.4; }
-        y += 5;
+    let columnIndex = 0;
+    const columnY = [39, 39];
+    for (let index = 0; index < activeQuiz.questions.length; index += 1) {
+      const question = activeQuiz.questions[index];
+      document.setFont('helvetica', 'bold'); document.setFontSize(10.5); document.setTextColor(22, 41, 31);
+      const questionLines = document.splitTextToSize(`${index + 1}. ${question.question}`, columnWidth);
+      const optionLines = question.options.flatMap((option) => document.splitTextToSize(option, columnWidth - 3));
+      const blockHeight = questionLines.length * 5 + optionLines.length * 4.4 + 7;
+      if (columnY[columnIndex] + blockHeight > pageHeight - margin) {
+        if (columnIndex === 0) {
+          columnIndex = 1;
+        } else {
+          document.addPage('a4', 'landscape'); drawHeader(); columnIndex = 0; columnY[0] = 39; columnY[1] = 39;
+        }
       }
+      const x = margin + columnIndex * (columnWidth + gap);
+      let y = columnY[columnIndex];
+      document.text(questionLines, x, y); y += questionLines.length * 5 + 2;
+      document.setFont('helvetica', 'normal'); document.setFontSize(9); document.setTextColor(57, 69, 62);
+      for (const option of question.options) { const lines = document.splitTextToSize(option, columnWidth - 3); document.text(lines, x + 3, y); y += lines.length * 4.4; }
+      columnY[columnIndex] = y + 5;
     }
     document.save(`questionario-${activeQuiz.lessonTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.pdf`);
   };
