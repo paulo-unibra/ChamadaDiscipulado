@@ -767,25 +767,31 @@ function App() {
         const image = await new Promise((resolve, reject) => { const source = new Image(); source.onload = () => resolve(source); source.onerror = reject; source.src = logo; });
         const canvas = window.document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
         canvas.getContext('2d').drawImage(image, 0, 0); printLogo = canvas.toDataURL('image/png');
-        const logoScale = Math.min(20 / image.width, 20 / image.height);
+        const logoScale = Math.min(24 / image.width, 24 / image.height);
         printLogoWidth = image.width * logoScale; printLogoHeight = image.height * logoScale;
       } catch {}
     }
-    const drawHeader = () => {
-      if (printLogo) document.addImage(printLogo, 'PNG', 14 + (20 - printLogoWidth) / 2, 9 + (20 - printLogoHeight) / 2, printLogoWidth, printLogoHeight);
-      const textX = printLogo ? 39 : 14;
+    const drawHeader = (showStudentName = false) => {
+      if (printLogo) document.addImage(printLogo, 'PNG', 14 + (24 - printLogoWidth) / 2, 7 + (24 - printLogoHeight) / 2, printLogoWidth, printLogoHeight);
+      const textX = printLogo ? 43 : 14;
       document.setFont('helvetica', 'bold'); document.setFontSize(17); document.setTextColor(18, 47, 33);
       document.text(activeQuiz.lessonTitle, textX, 17, { maxWidth: pageWidth - textX - margin });
       document.setFont('helvetica', 'normal'); document.setFontSize(9); document.setTextColor(90, 105, 97);
       document.text(activeCongregation?.name || 'Campanha Evangelizadora', textX, 23);
-      document.setDrawColor(218, 229, 221); document.line(margin, 31, pageWidth - margin, 31);
+      if (showStudentName) {
+        document.setTextColor(57, 69, 62);
+        document.text('Aluno(a): ______________________________________________', textX, 30);
+      }
+      const dividerY = showStudentName ? 36 : 31;
+      document.setDrawColor(218, 229, 221); document.line(margin, dividerY, pageWidth - margin, dividerY);
+      return showStudentName ? 44 : 39;
     };
-    drawHeader();
+    let columnStartY = drawHeader(true);
     let columnIndex = 0;
-    const columnY = [39, 39];
+    const columnY = [columnStartY, columnStartY];
     for (let index = 0; index < activeQuiz.questions.length; index += 1) {
       const question = activeQuiz.questions[index];
-      document.setFont('helvetica', 'bold'); document.setFontSize(10.5); document.setTextColor(22, 41, 31);
+      document.setFont('helvetica', 'bold'); document.setFontSize(9.5); document.setTextColor(22, 41, 31);
       const questionLines = document.splitTextToSize(`${index + 1}. ${question.question}`, columnWidth);
       const optionLines = question.options.flatMap((option) => document.splitTextToSize(option, columnWidth - 3));
       const blockHeight = questionLines.length * 5 + optionLines.length * 4.4 + 7;
@@ -793,13 +799,13 @@ function App() {
         if (columnIndex === 0) {
           columnIndex = 1;
         } else {
-          document.addPage('a4', 'landscape'); drawHeader(); columnIndex = 0; columnY[0] = 39; columnY[1] = 39;
+          document.addPage('a4', 'landscape'); columnStartY = drawHeader(); columnIndex = 0; columnY[0] = columnStartY; columnY[1] = columnStartY;
         }
       }
       const x = margin + columnIndex * (columnWidth + gap);
       let y = columnY[columnIndex];
       document.text(questionLines, x, y); y += questionLines.length * 5 + 2;
-      document.setFont('helvetica', 'normal'); document.setFontSize(9); document.setTextColor(57, 69, 62);
+      document.setFont('helvetica', 'normal'); document.setFontSize(8); document.setTextColor(57, 69, 62);
       for (const option of question.options) { const lines = document.splitTextToSize(option, columnWidth - 3); document.text(lines, x + 3, y); y += lines.length * 4.4; }
       columnY[columnIndex] = y + 5;
     }
