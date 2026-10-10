@@ -524,10 +524,10 @@ export default class SchoolController {
         db.raw('MIN(attendance_records.date) as start_date'),
         db.raw('MAX(attendance_records.date) as end_date'),
         db.raw(
-          "MIN(attendance_records.lesson_name) filter (where attendance_records.date = (select min(ar2.date) from attendance_records ar2 inner join attendance_entries ae2 on ae2.attendance_record_id = ar2.id where ae2.student_id = students.id and ae2.deleted_at is null and ar2.deleted_at is null and ae2.status in ('present', 'late'))) as first_lesson"
+          "(select ar2.lesson_name from attendance_records ar2 inner join attendance_entries ae2 on ae2.attendance_record_id = ar2.id inner join classes c2 on c2.id = ar2.class_id where ae2.student_id = students.id and c2.congregation_id = students.congregation_id and ae2.deleted_at is null and ar2.deleted_at is null and c2.deleted_at is null and ae2.status in ('present', 'late') order by ar2.date asc, ar2.id asc limit 1) as first_lesson"
         ),
         db.raw(
-          "MAX(attendance_records.lesson_name) filter (where attendance_records.date = (select max(ar2.date) from attendance_records ar2 inner join attendance_entries ae2 on ae2.attendance_record_id = ar2.id where ae2.student_id = students.id and ae2.deleted_at is null and ar2.deleted_at is null and ae2.status in ('present', 'late'))) as last_lesson"
+          "(select ar2.lesson_name from attendance_records ar2 inner join attendance_entries ae2 on ae2.attendance_record_id = ar2.id inner join classes c2 on c2.id = ar2.class_id where ae2.student_id = students.id and c2.congregation_id = students.congregation_id and ae2.deleted_at is null and ar2.deleted_at is null and c2.deleted_at is null and ae2.status in ('present', 'late') order by ar2.date desc, ar2.id desc limit 1) as last_lesson"
         )
       )
       .innerJoin('attendance_entries', 'attendance_entries.student_id', 'students.id')
@@ -536,10 +536,13 @@ export default class SchoolController {
         'attendance_records.id',
         'attendance_entries.attendance_record_id'
       )
+      .innerJoin('classes', 'classes.id', 'attendance_records.class_id')
       .whereNull('students.deleted_at')
       .whereNull('attendance_entries.deleted_at')
       .whereNull('attendance_records.deleted_at')
+      .whereNull('classes.deleted_at')
       .where('students.congregation_id', congregationId)
+      .where('classes.congregation_id', congregationId)
       .whereIn('attendance_entries.status', ['present', 'late'])
       .groupBy('students.id', 'students.name')
       .orderBy('start_date', 'asc')
