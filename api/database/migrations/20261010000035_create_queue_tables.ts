@@ -1,25 +1,6 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 export default class extends BaseSchema {
-  private async ensureIndex(tableName: string, indexName: string, columns: string[]) {
-    const columnSql = columns.map((column) => `\`${column}\``).join(', ')
-    try {
-      await this.schema.raw(
-        `ALTER TABLE \`${tableName}\` ADD INDEX \`${indexName}\` (${columnSql})`
-      )
-    } catch (error) {
-      const duplicateIndex =
-        typeof error === 'object' &&
-        error !== null &&
-        (('code' in error && error.code === 'ER_DUP_KEYNAME') ||
-          ('errno' in error && error.errno === 1061) ||
-          ('message' in error &&
-            typeof error.message === 'string' &&
-            error.message.includes('Duplicate key name')))
-      if (!duplicateIndex) throw error
-    }
-  }
-
   async up() {
     await this.schema.raw(`
       CREATE TABLE IF NOT EXISTS queue_jobs (
@@ -39,21 +20,6 @@ export default class extends BaseSchema {
         INDEX queue_jobs_queue_status_finished_at_index (queue, status, finished_at)
       ) ENGINE=InnoDB
     `)
-    await this.ensureIndex('queue_jobs', 'queue_jobs_queue_status_score_index', [
-      'queue',
-      'status',
-      'score',
-    ])
-    await this.ensureIndex('queue_jobs', 'queue_jobs_queue_status_execute_at_index', [
-      'queue',
-      'status',
-      'execute_at',
-    ])
-    await this.ensureIndex('queue_jobs', 'queue_jobs_queue_status_finished_at_index', [
-      'queue',
-      'status',
-      'finished_at',
-    ])
     await this.schema.raw(`
       CREATE TABLE IF NOT EXISTS queue_schedules (
         id varchar(255) NOT NULL,
@@ -74,10 +40,6 @@ export default class extends BaseSchema {
         INDEX queue_schedules_status_next_run_at_index (status, next_run_at)
       ) ENGINE=InnoDB
     `)
-    await this.ensureIndex('queue_schedules', 'queue_schedules_status_next_run_at_index', [
-      'status',
-      'next_run_at',
-    ])
   }
 
   async down() {
