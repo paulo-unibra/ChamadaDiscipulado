@@ -74,15 +74,16 @@ jobs:
             cp /root/ChamadaDiscipulado/deploy-artifacts/docker-compose.yml /root/ChamadaDiscipulado/docker-compose.yml
             pm2 delete chamada-discipulado || true
             cd /root/ChamadaDiscipulado
-            docker compose stop api || true
+            docker compose stop api worker || true
             if ! docker compose run --rm api node ace migration:run --force; then
-              docker compose start api || true
+              docker compose start api worker || true
               docker logs --tail=80 chamada-discipulado-api 2>/dev/null || true
               exit 1
             fi
             docker compose up -d --force-recreate --remove-orphans
             for i in $(seq 1 30); do
-              if curl --fail --silent http://127.0.0.1:2000/health >/dev/null; then
+              worker_status=$(docker inspect -f "{{.State.Status}}" chamada-discipulado-worker 2>/dev/null || true)
+              if [ "$worker_status" = "running" ] && curl --fail --silent http://127.0.0.1:2000/health >/dev/null; then
                 docker image prune -af
                 rm -rf /root/ChamadaDiscipulado/deploy-artifacts
                 exit 0
@@ -90,5 +91,7 @@ jobs:
               sleep 2
             done
             docker inspect -f "container={{.Name}} status={{.State.Status}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}}" chamada-discipulado-api 2>/dev/null || true
+            docker inspect -f "container={{.Name}} status={{.State.Status}} oom={{.State.OOMKilled}} exit={{.State.ExitCode}}" chamada-discipulado-worker 2>/dev/null || true
             docker logs --tail=80 chamada-discipulado-api 2>/dev/null || true
+            docker logs --tail=80 chamada-discipulado-worker 2>/dev/null || true
             exit 1'

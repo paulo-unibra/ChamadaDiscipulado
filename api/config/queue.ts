@@ -21,7 +21,7 @@ const queueConfig = defineConfig({
   retry: {
     maxRetries: 3,
   },
-  locations: ['./app/jobs/**/*.ts'],
+  locations: env.get('NODE_ENV') === 'production' ? ['./app/jobs/**/*.js'] : ['./app/jobs/**/*.ts'],
 })
 
 export default queueConfig

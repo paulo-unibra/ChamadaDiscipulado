@@ -1,12 +1,11 @@
 import { randomInt, randomUUID } from 'node:crypto'
 import { Secret } from '@adonisjs/core/helpers'
 import env from '#start/env'
-import hash from '@adonisjs/core/services/hash'
-import db from '@adonisjs/lucid/services/db'
 import AdminCredential from '#models/admin_credential'
 
 class AuthService {
   private async getCredential(email: string) {
+    const { default: hash } = await import('@adonisjs/core/services/hash')
     let credential = await AdminCredential.find(email)
     const initialPassword = env.get('ADMIN_PASSWORD')
     if (!credential && initialPassword) {
@@ -31,6 +30,10 @@ class AuthService {
   }
 
   async beginLogin(userEmail: string, candidate: string) {
+    const [{ default: hash }, { default: db }] = await Promise.all([
+      import('@adonisjs/core/services/hash'),
+      import('@adonisjs/lucid/services/db'),
+    ])
     const email = env.get('ADMIN_EMAIL', '').trim().toLowerCase()
     if (!email || userEmail.trim().toLowerCase() !== email) return null
     const credential = await this.getCredential(email)
@@ -66,6 +69,10 @@ class AuthService {
   }
 
   async finishLogin(challenge: string, code: string) {
+    const [{ default: hash }, { default: db }] = await Promise.all([
+      import('@adonisjs/core/services/hash'),
+      import('@adonisjs/lucid/services/db'),
+    ])
     const item = await db.transaction(async (trx) => {
       const challengeRow = await trx
         .from('api_login_challenges')
@@ -94,6 +101,7 @@ class AuthService {
   }
 
   async changePassword(credential: AdminCredential, current: string, next: string) {
+    const { default: hash } = await import('@adonisjs/core/services/hash')
     if (!(await hash.verify(credential.passwordHash, current))) return false
     credential.passwordHash = await hash.make(next)
     await credential.save()
