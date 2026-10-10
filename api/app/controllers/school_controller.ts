@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
+import { preserveScheduleFields } from '#services/schedule_fields_service'
 
 const VALID_STATUSES = ['present', 'absent', 'justified', 'late'] as const
 type AttendanceStatus = (typeof VALID_STATUSES)[number]
@@ -899,8 +900,8 @@ export default class SchoolController {
     if (!classRow) return response.notFound({ message: 'Turma não encontrada nesta congregação.' })
     const lessons = request.input('lessons')
     if (!Array.isArray(lessons)) return response.badRequest({ message: 'A escala enviada é inválida.' })
-    const existingRows = await db.from('discipleship_schedule').select('id', 'lesson_date').where('class_id', params.id).where('congregation_id', congregationId)
-    const existingById = new Map(existingRows.map((row: any) => [String(row.id), normalizeDateForClient(row.lesson_date)]))
+    const existingRows = await db.from('discipleship_schedule').select('*').where('class_id', params.id).where('congregation_id', congregationId)
+    const existingById = new Map(existingRows.map((row) => [String(row.id), row]))
     const lessonWeekday = Number(classRow.lesson_weekday ?? 0)
     const normalized: Array<{
       id: string
@@ -914,15 +915,18 @@ export default class SchoolController {
       lesson_time: string | null
     }> = []
     const seenDates = new Set<string>()
+    const seenIds = new Set<string>()
     for (const lesson of lessons) {
       const date = safeString(lesson?.date)
       const title = safeString(lesson?.title)
       const teacherId = safeString(lesson?.teacherId)
       const lessonId = safeString(lesson?.id)
+      const previous = lessonId ? existingById.get(lessonId) : undefined
+      if (lessonId && seenIds.has(lessonId)) return response.badRequest({ message: 'Uma aula não pode aparecer duas vezes na mesma escala.' })
+      if (lessonId) seenIds.add(lessonId)
       const justification = safeString(lesson?.justification)
-      const content = safeString(lesson?.content)
-      const lessonTime = safeString(lesson?.time)
-      const previousDate = lessonId ? existingById.get(lessonId) : undefined
+      const { content, lessonTime, id: preservedId } = preserveScheduleFields(lesson, previous)
+      const previousDate = previous ? normalizeDateForClient(previous.lesson_date) : undefined
       if (!isValidIsoDate(date) || !title) {
         return response.badRequest({ message: 'Cada aula precisa ter um título e uma data válida.' })
       }
@@ -937,7 +941,7 @@ export default class SchoolController {
       if (teacherId && !(await db.from('teachers').where('id', teacherId).where('congregation_id', congregationId).whereNull('deleted_at').first())) {
         return response.badRequest({ message: 'Selecione um professor válido desta congregação.' })
       }
-      normalized.push({ id: id('schedule'), congregation_id: congregationId, class_id: String(params.id), lesson_date: date, title, teacher_id: teacherId || null, justification: justification || null, content: content || null, lesson_time: lessonTime || null })
+      normalized.push({ id: preservedId || id('schedule'), congregation_id: congregationId, class_id: String(params.id), lesson_date: date, title, teacher_id: teacherId || null, justification: justification || null, content: content || null, lesson_time: lessonTime || null })
     }
     await db.transaction(async (trx) => {
       await trx.from('discipleship_schedule').where('class_id', params.id).where('congregation_id', congregationId).delete()

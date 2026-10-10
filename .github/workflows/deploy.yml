@@ -27,6 +27,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - name: Install React web dependencies
         run: npm ci --prefix web
+      - name: Validate React web
+        run: npm --prefix web run lint && npm --prefix web run typecheck && npm --prefix web test
       - name: Build React web
         run: npm --prefix web run build
         env:
