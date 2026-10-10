@@ -33,7 +33,7 @@ jobs:
           VITE_API_BASE_URL: https://discipulado.bibliafoco.com.br/api
       - name: Configure Apache client-side routing
         run: |
-          printf 'Options -MultiViews\nRewriteEngine On\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule ^ index.html [QSA,L]\n' > web/dist/.htaccess
+          printf 'Options -MultiViews\nRewriteEngine On\nRewriteCond %%{HTTP:Upgrade} =websocket [NC]\nRewriteRule ^ws$ ws://127.0.0.1:2000/ws [P,L]\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule ^ index.html [QSA,L]\n' > web/dist/.htaccess
 
       - name: Build API Docker image
         run: docker build -t chamada-discipulado-api:latest ./api

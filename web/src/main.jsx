@@ -150,6 +150,7 @@ function App() {
   const [formQuestions, setFormQuestions] = useState([]), [integrationBusy, setIntegrationBusy] = useState(false), [integrationMessage, setIntegrationMessage] = useState('');
   const [chatGptApiKey, setChatGptApiKey] = useState(''), [chatGptConfigured, setChatGptConfigured] = useState(false), [chatGptBusy, setChatGptBusy] = useState(false), [chatGptMessage, setChatGptMessage] = useState('');
   const [quizJobs, setQuizJobs] = useState({}), [quizCountDraft, setQuizCountDraft] = useState(null), [quizGeneratingLessonId, setQuizGeneratingLessonId] = useState(''), [activeQuiz, setActiveQuiz] = useState(null), [quizNotice, setQuizNotice] = useState('');
+  const pendingQuizIdsKey = Object.values(quizJobs).flat().filter((quiz) => quiz.status === 'pending').map((quiz) => quiz.id).sort().join('|');
   const [formSentItems, setFormSentItems] = useState({}), [formOpenedItems, setFormOpenedItems] = useState({});
   const initializedScaleClasses = useRef(new Set());
   const apiFetch = (path, options = {}) => { const separator = path.includes('?') ? '&' : '?'; const scopedPath = `${path}${separator}congregationId=${encodeURIComponent(activeCongregationId)}`; return fetch(`${API}${scopedPath}`, { ...options, headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } }); };
@@ -345,7 +346,7 @@ function App() {
       if (stopped) return;
       const endpoint = new URL(API);
       endpoint.protocol = endpoint.protocol === 'https:' ? 'wss:' : 'ws:';
-      endpoint.pathname = `${endpoint.pathname.replace(/\/$/, '')}/ws`;
+      endpoint.pathname = '/ws';
       endpoint.searchParams.set('congregationId', activeCongregationId);
       socket = new WebSocket(endpoint, ['chamada-discipulado', token]);
       socket.onopen = refreshQuizzes;
@@ -364,6 +365,30 @@ function App() {
     connect();
     return () => { stopped = true; window.clearTimeout(reconnectTimer); socket?.close(); };
   }, [token, activeCongregationId]);
+  useEffect(() => {
+    const pendingQuizzes = Object.values(quizJobs).flat().filter((quiz) => quiz.status === 'pending');
+    if (!token || !pendingQuizzes.length) return undefined;
+    let stopped = false;
+    const pendingIds = new Set(pendingQuizzes.map((quiz) => quiz.id));
+    const refreshPendingQuizzes = async () => {
+      try {
+        const response = await apiFetch('/school/quizzes');
+        if (!response.ok || stopped) return;
+        const result = await response.json();
+        const updatedJobs = (result.quizzes || []).filter((quiz) => pendingIds.has(quiz.id) && quiz.status !== 'pending');
+        setQuizJobs((current) => {
+          const next = { ...current };
+          for (const quiz of result.quizzes || []) next[quiz.scheduleId] = [quiz, ...(next[quiz.scheduleId] || []).filter((item) => item.id !== quiz.id)];
+          return next;
+        });
+        const finished = updatedJobs.find((quiz) => quiz.status === 'completed' || quiz.status === 'failed');
+        if (finished) setQuizNotice(finished.status === 'completed' ? `Questionário pronto: ${finished.lessonTitle}.` : `Falha ao gerar ${finished.lessonTitle}: ${finished.error}`);
+      } catch {}
+    };
+    const timer = window.setInterval(refreshPendingQuizzes, 2500);
+    void refreshPendingQuizzes();
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [token, activeCongregationId, pendingQuizIdsKey]);
   useEffect(() => {
     if (!token) return;
     apiFetch('/integrations/google/forms/sent-items').then(async (response) => {
