@@ -759,7 +759,7 @@ function App() {
     const [{ jsPDF }] = await Promise.all([import('jspdf')]);
     const document = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const pageWidth = document.internal.pageSize.getWidth(), pageHeight = document.internal.pageSize.getHeight();
-    const margin = 14, gap = 12, columnWidth = (pageWidth - margin * 2 - gap) / 2;
+    const margin = 10, gap = 8, questionLineHeight = 4, optionLineHeight = 3.5, columnWidth = (pageWidth - margin * 2 - gap) / 2;
     const logo = activeCongregation?.logoData || '';
     let printLogo = '', printLogoWidth = 0, printLogoHeight = 0;
     if (logo) {
@@ -772,8 +772,8 @@ function App() {
       } catch {}
     }
     const drawHeader = (showStudentName = false) => {
-      if (printLogo) document.addImage(printLogo, 'PNG', 14 + (24 - printLogoWidth) / 2, 7 + (24 - printLogoHeight) / 2, printLogoWidth, printLogoHeight);
-      const textX = printLogo ? 43 : 14;
+      if (printLogo) document.addImage(printLogo, 'PNG', margin + (24 - printLogoWidth) / 2, 7 + (24 - printLogoHeight) / 2, printLogoWidth, printLogoHeight);
+      const textX = printLogo ? margin + 29 : margin;
       document.setFont('helvetica', 'bold'); document.setFontSize(17); document.setTextColor(18, 47, 33);
       document.text(activeQuiz.lessonTitle, textX, 17, { maxWidth: pageWidth - textX - margin });
       document.setFont('helvetica', 'normal'); document.setFontSize(9); document.setTextColor(90, 105, 97);
@@ -794,7 +794,7 @@ function App() {
       document.setFont('helvetica', 'bold'); document.setFontSize(9.5); document.setTextColor(22, 41, 31);
       const questionLines = document.splitTextToSize(`${index + 1}. ${question.question}`, columnWidth);
       const optionLines = question.options.flatMap((option) => document.splitTextToSize(option, columnWidth - 3));
-      const blockHeight = questionLines.length * 5 + optionLines.length * 4.4 + 7;
+      const blockHeight = questionLines.length * questionLineHeight + optionLines.length * optionLineHeight + 7;
       if (columnY[columnIndex] + blockHeight > pageHeight - margin) {
         if (columnIndex === 0) {
           columnIndex = 1;
@@ -804,9 +804,9 @@ function App() {
       }
       const x = margin + columnIndex * (columnWidth + gap);
       let y = columnY[columnIndex];
-      document.text(questionLines, x, y); y += questionLines.length * 5 + 2;
+      document.text(questionLines, x, y); y += questionLines.length * questionLineHeight + 2;
       document.setFont('helvetica', 'normal'); document.setFontSize(8); document.setTextColor(57, 69, 62);
-      for (const option of question.options) { const lines = document.splitTextToSize(option, columnWidth - 3); document.text(lines, x + 3, y); y += lines.length * 4.4; }
+      for (const option of question.options) { const lines = document.splitTextToSize(option, columnWidth - 3); document.text(lines, x + 3, y); y += lines.length * optionLineHeight; }
       columnY[columnIndex] = y + 5;
     }
     document.save(`questionario-${activeQuiz.lessonTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.pdf`);
