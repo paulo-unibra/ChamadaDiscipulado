@@ -8,17 +8,39 @@ export type QuizQuestion = {
   explanation: string
 }
 
-export async function getChatGptApiKey(congregationId: string) {
+export type QuizAiProvider = 'chatgpt' | 'deepseek'
+
+const providerConfig = {
+  chatgpt: {
+    column: 'chatgpt_api_key',
+    purpose: 'chatgpt-api-key',
+    endpoint: 'https://api.openai.com/v1/chat/completions',
+    model: 'gpt-4o-mini',
+    label: 'ChatGPT',
+  },
+  deepseek: {
+    column: 'deepseek_api_key',
+    purpose: 'deepseek-api-key',
+    endpoint: 'https://api.deepseek.com/chat/completions',
+    model: 'deepseek-chat',
+    label: 'DeepSeek',
+  },
+} satisfies Record<QuizAiProvider, { column: string; purpose: string; endpoint: string; model: string; label: string }>
+
+export async function getAiApiKey(congregationId: string, provider: QuizAiProvider) {
+  const config = providerConfig[provider]
   const row = await db
     .from('google_forms_integrations')
-    .select('chatgpt_api_key')
+    .select(config.column)
     .where('congregation_id', congregationId)
     .first()
-  if (!row?.chatgpt_api_key) return ''
-  return encryption.decrypt<string>(row.chatgpt_api_key, 'chatgpt-api-key') || ''
+  const encryptedApiKey = row?.[config.column]
+  if (!encryptedApiKey) return ''
+  return encryption.decrypt<string>(encryptedApiKey, config.purpose) || ''
 }
 
-export async function saveChatGptApiKey(congregationId: string, value: unknown) {
+export async function saveAiApiKey(congregationId: string, provider: QuizAiProvider, value: unknown) {
+  const config = providerConfig[provider]
   if (typeof value !== 'string' || value.trim().length > 2000) {
     throw new Error('Informe um token válido de até 2.000 caracteres.')
   }
@@ -27,12 +49,12 @@ export async function saveChatGptApiKey(congregationId: string, value: unknown) 
     .from('google_forms_integrations')
     .where('congregation_id', congregationId)
     .first()
-  const encryptedKey = apiKey ? encryption.encrypt(apiKey, undefined, 'chatgpt-api-key') : null
+  const encryptedKey = apiKey ? encryption.encrypt(apiKey, undefined, config.purpose) : null
   if (existing) {
     await db
       .from('google_forms_integrations')
       .where('congregation_id', congregationId)
-      .update({ chatgpt_api_key: encryptedKey, updated_at: new Date() })
+      .update({ [config.column]: encryptedKey, updated_at: new Date() })
   } else {
     await db.table('google_forms_integrations').insert({
       congregation_id: congregationId,
@@ -40,7 +62,7 @@ export async function saveChatGptApiKey(congregationId: string, value: unknown) 
       form_id: '',
       apps_script_url: '',
       section_config: JSON.stringify({ sections: {}, fields: {}, mappings: {}, fixedAnswers: {} }),
-      chatgpt_api_key: encryptedKey,
+      [config.column]: encryptedKey,
       created_at: new Date(),
       updated_at: new Date(),
     })
@@ -48,13 +70,18 @@ export async function saveChatGptApiKey(congregationId: string, value: unknown) 
   return { configured: Boolean(apiKey), apiKey }
 }
 
+export const getChatGptApiKey = (congregationId: string) => getAiApiKey(congregationId, 'chatgpt')
+export const saveChatGptApiKey = (congregationId: string, value: unknown) => saveAiApiKey(congregationId, 'chatgpt', value)
+
 export async function createQuizQuestions(
+  provider: QuizAiProvider,
   apiKey: string,
   lessonTitle: string,
   lessonContent: string,
   count: number
 ): Promise<QuizQuestion[]> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const config = providerConfig[provider]
+  const response = await fetch(config.endpoint, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -62,7 +89,7 @@ export async function createQuizQuestions(
     },
     signal: AbortSignal.timeout(120_000),
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: config.model,
       temperature: 0.4,
       response_format: { type: 'json_object' },
       messages: [
@@ -82,19 +109,19 @@ export async function createQuizQuestions(
   if (!response.ok) {
     const message = payload?.error?.message
     throw new Error(
-      typeof message === 'string' ? message : `A API do ChatGPT respondeu com HTTP ${response.status}.`
+      typeof message === 'string' ? message : `A API do ${config.label} respondeu com HTTP ${response.status}.`
     )
   }
   const raw = payload?.choices?.[0]?.message?.content
-  if (typeof raw !== 'string') throw new Error('O ChatGPT não retornou o questionário.')
+  if (typeof raw !== 'string') throw new Error(`O ${config.label} não retornou o questionário.`)
   let parsed: { questions?: unknown[] }
   try {
     parsed = JSON.parse(raw)
   } catch {
-    throw new Error('O ChatGPT retornou um questionário em formato inválido.')
+    throw new Error(`O ${config.label} retornou um questionário em formato inválido.`)
   }
   if (!Array.isArray(parsed.questions) || parsed.questions.length !== count) {
-    throw new Error('O ChatGPT não retornou a quantidade de questões solicitada.')
+    throw new Error(`O ${config.label} não retornou a quantidade de questões solicitada.`)
   }
   return parsed.questions.map((item, index) => {
     const question = item as Partial<QuizQuestion>

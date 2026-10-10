@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
 import { getCongregationId } from '#services/google_forms_service'
-import { createQuizQuestions, getChatGptApiKey } from '#services/chatgpt_service'
+import { createQuizQuestions, getAiApiKey, type QuizAiProvider } from '#services/chatgpt_service'
 import { publishQuizUpdate } from '#services/quiz_websocket_service'
 
 function parseQuestions(value: unknown) {
@@ -22,6 +22,7 @@ function serializeQuiz(row: any) {
     classId: String(row.class_id),
     scheduleId: String(row.schedule_id),
     lessonTitle: row.lesson_title,
+    provider: row.provider || 'chatgpt',
     questionCount: Number(row.question_count),
     status: row.status,
     questions: parseQuestions(row.questions),
@@ -58,9 +59,14 @@ export default class QuizzesController {
     if (!lesson) return response.notFound({ message: 'Lição não encontrada nesta escala.' })
     const content = typeof lesson.content === 'string' ? lesson.content.trim() : ''
     if (!content) return response.badRequest({ message: 'Adicione o conteúdo da lição antes de gerar um questionário.' })
-    const configuredApiKey = await getChatGptApiKey(congregationId)
+    const requestedProvider = request.input('provider') ?? 'chatgpt'
+    if (requestedProvider !== 'chatgpt' && requestedProvider !== 'deepseek') {
+      return response.badRequest({ message: 'Selecione uma integração de IA válida.' })
+    }
+    const provider = requestedProvider as QuizAiProvider
+    const configuredApiKey = await getAiApiKey(congregationId, provider)
     if (!configuredApiKey) {
-      return response.badRequest({ message: 'Configure a integração do ChatGPT antes de gerar questionários.' })
+      return response.badRequest({ message: `Configure a integração do ${provider === 'deepseek' ? 'DeepSeek' : 'ChatGPT'} antes de gerar questionários.` })
     }
     const questionCount = Number(request.input('questionCount'))
     if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 30) {
@@ -74,6 +80,7 @@ export default class QuizzesController {
       class_id: String(params.classId),
       schedule_id: String(params.scheduleId),
       lesson_title: lesson.title,
+      provider,
       question_count: questionCount,
       status: 'pending',
       questions: null,
@@ -86,6 +93,7 @@ export default class QuizzesController {
       classId: String(params.classId),
       scheduleId: String(params.scheduleId),
       lessonTitle: lesson.title,
+      provider,
       questionCount,
       status: 'pending',
       questions: [],
@@ -96,6 +104,7 @@ export default class QuizzesController {
       jobId,
       congregationId,
       apiKey: configuredApiKey,
+      provider,
       lessonTitle: lesson.title,
       lessonContent: content,
       questionCount,
@@ -107,6 +116,7 @@ export default class QuizzesController {
     jobId,
     congregationId,
     apiKey,
+    provider,
     lessonTitle,
     lessonContent,
     questionCount,
@@ -114,12 +124,13 @@ export default class QuizzesController {
     jobId: string
     congregationId: string
     apiKey: string
+    provider: QuizAiProvider
     lessonTitle: string
     lessonContent: string
     questionCount: number
   }) {
     try {
-      const questions = await createQuizQuestions(apiKey, lessonTitle, lessonContent, questionCount)
+      const questions = await createQuizQuestions(provider, apiKey, lessonTitle, lessonContent, questionCount)
       await db
         .from('discipleship_quizzes')
         .where('id', jobId)

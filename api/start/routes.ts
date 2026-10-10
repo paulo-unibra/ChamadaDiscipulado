@@ -35,6 +35,8 @@ router
     router.put('/integrations/google/forms', [IntegrationsController, 'save'])
     router.get('/integrations/chatgpt', [IntegrationsController, 'showChatGpt'])
     router.put('/integrations/chatgpt', [IntegrationsController, 'saveChatGpt'])
+    router.get('/integrations/deepseek', [IntegrationsController, 'showDeepSeek'])
+    router.put('/integrations/deepseek', [IntegrationsController, 'saveDeepSeek'])
     router.get('/integrations/google/forms/:formId/questions', [IntegrationsController, 'questions'])
     router.get('/integrations/google/forms/sent-items', [IntegrationsController, 'sentItems'])
     router.post('/integrations/google/forms/mark-sent', [IntegrationsController, 'markSent'])

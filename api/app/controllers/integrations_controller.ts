@@ -1,7 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import db from '@adonisjs/lucid/services/db'
 import { getCongregationId, getIntegration, getSentItems, markItemSent, saveIntegration, scrapePublicFormQuestions } from '#services/google_forms_service'
-import { getChatGptApiKey, saveChatGptApiKey } from '#services/chatgpt_service'
+import { getAiApiKey, getChatGptApiKey, saveAiApiKey, saveChatGptApiKey } from '#services/chatgpt_service'
 
 const VALID_SECTIONS = new Set(['new-converts', 'students', 'classes', 'teachers', 'attendance'])
 
@@ -24,6 +24,23 @@ export default class IntegrationsController {
       return response.ok(await saveChatGptApiKey(congregationId, request.input('apiKey')))
     } catch (error) {
       return response.badRequest({ message: error instanceof Error ? error.message : 'Não foi possível salvar o token do ChatGPT.' })
+    }
+  }
+
+  async showDeepSeek({ request, response }: HttpContext) {
+    const congregationId = getCongregationId(request)
+    if (!(await validCongregation(congregationId))) return response.badRequest({ message: 'Selecione uma congregação válida.' })
+    const apiKey = await getAiApiKey(congregationId, 'deepseek')
+    return response.ok({ configured: Boolean(apiKey), apiKey })
+  }
+
+  async saveDeepSeek({ request, response }: HttpContext) {
+    const congregationId = getCongregationId(request)
+    if (!(await validCongregation(congregationId))) return response.badRequest({ message: 'Selecione uma congregação válida.' })
+    try {
+      return response.ok(await saveAiApiKey(congregationId, 'deepseek', request.input('apiKey')))
+    } catch (error) {
+      return response.badRequest({ message: error instanceof Error ? error.message : 'Não foi possível salvar o token do DeepSeek.' })
     }
   }
 
