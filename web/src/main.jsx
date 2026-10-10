@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Activity, BookOpen, CalendarDays, ChartNoAxesColumn, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, FileText, FolderOpen, LayoutDashboard, LogOut, Menu, Plus, Search, Settings, Users, X, Save, RefreshCw, FileInput, CircleCheck, Pencil, Pin, History, MessageCircle, WandSparkles, ClipboardList, LoaderCircle, Bot, Waves } from 'lucide-react';
+import { Activity, BookOpen, CalendarDays, ChartNoAxesColumn, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, FileText, FolderOpen, LayoutDashboard, LogOut, Menu, Plus, Search, Settings, Users, X, Save, RefreshCw, FileInput, CircleCheck, Pencil, Pin, History, MessageCircle, WandSparkles, ClipboardList, LoaderCircle } from 'lucide-react';
 import './styles.css';
 import { useApi } from './use-api';
 import { isAbortError } from './types';
@@ -12,6 +12,9 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { DialogAccessibility } from './DialogAccessibility';
 import { QuizCountDialog, QuizViewDialog, ScaleMessageDialog } from './QuizDialogs';
 import { ClassScaleDialog, LessonContentDialog, LessonEditDialog } from './ScaleDialogs';
+import chatGptLogo from './img/ChatGPT-Logo.svg.webp';
+import deepSeekLogo from './img/DeepSeek-Emblem.png';
+import googleFormsLogo from './img/google-forms-on-transparent-background-free-png.webp';
 const OverviewPage = React.lazy(() => import('./OverviewPage'));
 const PermissionsPage = React.lazy(() => import('./PermissionsPage'));
 
@@ -719,11 +722,11 @@ function App({ token, setToken, activeCongregationId, setActiveCongregationId })
               <header className="integration-dashboard-heading"><h2>Ferramentas disponíveis</h2><span>3 integrações</span></header>
               <div className="integration-tool-grid">
                 {[
-                  { id: 'chatgpt', name: 'GPT', icon: Bot, description: 'Gere questionários a partir das lições.', configured: chatGpt.configured, open: () => setIntegrationDialog('chatgpt') },
-                  { id: 'deepseek', name: 'DeepSeek', icon: Waves, description: 'Gere questionários a partir das lições.', configured: deepSeek.configured, open: () => setIntegrationDialog('deepseek') },
-                  { id: 'google', name: 'Google Forms', icon: FileInput, description: 'Envie os dados para seus formulários.', configured: Boolean(integration.formId), active: integration.enabled, open: () => { setIntegrationMessage(''); setIntegrationDialog('google'); } },
-                ].map(({ id, name, icon: Icon, description, configured, active, open }) => <article className="integration-tool-card" key={id}>
-                  <span className={`integration-tool-card-icon ${id}`}><Icon size={30}/></span>
+                  { id: 'chatgpt', name: 'GPT', logo: chatGptLogo, description: 'Gere questionários a partir das lições.', configured: chatGpt.configured, open: () => setIntegrationDialog('chatgpt') },
+                  { id: 'deepseek', name: 'DeepSeek', logo: deepSeekLogo, description: 'Gere questionários a partir das lições.', configured: deepSeek.configured, open: () => setIntegrationDialog('deepseek') },
+                  { id: 'google', name: 'Google Forms', logo: googleFormsLogo, description: 'Envie os dados para seus formulários.', configured: Boolean(integration.formId), active: integration.enabled, open: () => { setIntegrationMessage(''); setIntegrationDialog('google'); } },
+                ].map(({ id, name, logo, description, configured, active, open }) => <article className="integration-tool-card" key={id}>
+                  <span className={`integration-tool-card-icon ${id}`}><img src={logo} alt=""/></span>
                   <h3>{name}</h3>
                   <p>{description}</p>
                   <span className={`integration-status-pill ${configured ? 'configured' : ''}`}><i/>{configured ? (active === false ? 'Configurado · desativado' : 'Configurado') : 'Não configurado'}</span>
@@ -732,11 +735,11 @@ function App({ token, setToken, activeCongregationId, setActiveCongregationId })
               </div>
               <footer className="integration-dashboard-footer"><Activity size={16}/><span>{activeCongregation?.name || 'Selecione uma congregação'} · As configurações são independentes para cada congregação.</span></footer>
             </section>
-            {integrationDialog === 'chatgpt' && <AiIntegrationPanel name="GPT" icon={Bot} integration={chatGpt} onClose={() => setIntegrationDialog('')}/>}
-            {integrationDialog === 'deepseek' && <AiIntegrationPanel name="DeepSeek" icon={Waves} integration={deepSeek} onClose={() => setIntegrationDialog('')}/>}
+            {integrationDialog === 'chatgpt' && <AiIntegrationPanel name="GPT" logo={chatGptLogo} integration={chatGpt} onClose={() => setIntegrationDialog('')}/>}
+            {integrationDialog === 'deepseek' && <AiIntegrationPanel name="DeepSeek" logo={deepSeekLogo} integration={deepSeek} onClose={() => setIntegrationDialog('')}/>}
             {integrationDialog === 'google' && <Modal className="integration-modal-overlay" onClose={() => setIntegrationDialog('')}>
               <section className="convert-modal integration-config-modal google-form-config-modal" role="dialog" aria-modal="true" aria-labelledby="google-form-config-title">
-                <header className="integration-config-heading"><span className="integration-tool-icon google"><FileInput size={23}/></span><div><h2 id="google-form-config-title">Configurar Google Forms</h2><p>Conecte seu formulário e escolha os dados a pré-preencher.</p></div><button type="button" className="icon-button" onClick={() => setIntegrationDialog('')} aria-label="Fechar configuração"><X size={19}/></button></header>
+                <header className="integration-config-heading"><span className="integration-tool-icon google"><img src={googleFormsLogo} alt=""/></span><div><h2 id="google-form-config-title">Configurar Google Forms</h2><p>Conecte seu formulário e escolha os dados a pré-preencher.</p></div><button type="button" className="icon-button" onClick={() => setIntegrationDialog('')} aria-label="Fechar configuração"><X size={19}/></button></header>
                 <div className="integration-public-note">Cole o link público do formulário (<code>/forms/d/e/…/viewform</code>). Os campos são lidos da página pública; não é necessária permissão de edição.</div>
                 <div className="integration-status-row"><div className="integration-description"><span className={`status-dot ${integration.enabled ? 'on' : ''}`} /><div><b>{integration.enabled ? 'Integração ativada' : integration.formId ? 'Formulário configurado' : 'Integração não configurada'}</b><small>Vinculada a {activeCongregation?.name || 'esta congregação'}.</small></div></div><label className="switch-control" aria-label="Ativar integração Google Forms"><input type="checkbox" checked={integration.enabled} onChange={(event) => setIntegrationValue('enabled', event.target.checked)} /><span className="switch-slider" /></label></div>
                 <div className="integration-setup-grid"><label className="field">Link público ou ID do formulário<input disabled={!integration.enabled} value={integration.formId} onChange={(event) => setIntegrationValue('formId', event.target.value)} placeholder="https://docs.google.com/forms/d/e/.../viewform" /></label><button type="button" className="button secondary integration-fetch" disabled={!integration.enabled || !integration.formId || integrationBusy} onClick={loadFormQuestions}><RefreshCw size={15} />{integrationBusy ? 'Lendo campos…' : 'Ler campos públicos'}</button></div>

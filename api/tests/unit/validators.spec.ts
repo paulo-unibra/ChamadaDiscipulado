@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import { loginValidator, verifyLoginValidator } from '#validators/auth_validator'
+import { apiKeyValidator } from '#validators/integration_validator'
 import { generateQuizValidator, quizListValidator } from '#validators/quiz_validator'
 
 test.group('Request validation', () => {
@@ -30,5 +31,10 @@ test.group('Request validation', () => {
   test('coerces and bounds pagination query strings', async ({ assert }) => {
     const payload = await quizListValidator.validate({ filters: { page: '2', limit: '50' } })
     assert.deepEqual(payload.filters, { page: 2, limit: 50 })
+  })
+
+  test('accepts an explicit null to remove a stored integration key', async ({ assert }) => {
+    const payload = await apiKeyValidator.validate({ apiKey: null })
+    assert.isNull(payload.apiKey)
   })
 })

@@ -62,6 +62,24 @@ describe('fluxos do painel', () => {
     expect(screen.getByRole('button', { name: 'Remover integração' })).toBeEnabled();
   });
 
+  it('remove a chave da API e atualiza o estado exibido no cartão', async () => {
+    fetch.mockImplementation(async (input, options) => {
+      const url = new URL(input);
+      if (url.pathname === '/integrations/chatgpt' && options?.method === 'PUT') {
+        expect(JSON.parse(options.body)).toEqual({ apiKey: null });
+        return new Response(JSON.stringify({ configured: false }), { status: 200 });
+      }
+      if (url.pathname === '/integrations/chatgpt') return new Response(JSON.stringify({ configured: true }), { status: 200 });
+      if (url.pathname === '/integrations/deepseek') return new Response(JSON.stringify({ configured: false }), { status: 200 });
+      return new Response(JSON.stringify(payloadFor(url)), { status: 200 });
+    });
+    mount();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Configurar integração' }))[0]);
+    await screen.findByRole('button', { name: 'Remover integração' });
+    fireEvent.click(screen.getByRole('button', { name: 'Remover integração' }));
+    await waitFor(() => expect(screen.getAllByText('Não configurado')).toHaveLength(3));
+  });
+
   it('apresenta as ferramentas em cartões e abre a configuração escolhida', async () => {
     mount();
     const configureButtons = await screen.findAllByRole('button', { name: 'Configurar integração' });

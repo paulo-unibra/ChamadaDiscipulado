@@ -2,7 +2,7 @@ import vine from '@vinejs/vine'
 
 export const apiKeyValidator = vine.compile(
   vine.object({
-    apiKey: vine.string().trim().maxLength(2000),
+    apiKey: vine.string().trim().maxLength(2000).nullable(),
   })
 )
 

@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { Eye, EyeOff, Save, X } from 'lucide-react';
 import { Modal } from './Modal';
 
-export function AiIntegrationPanel({ name, icon: Icon, integration, onClose }) {
+export function AiIntegrationPanel({ name, logo, integration, onClose }) {
   const [showKey, setShowKey] = useState(false);
   const id = `${name.toLowerCase()}-api-key`;
 
   return <Modal className="integration-modal-overlay" onClose={onClose}>
     <section className="convert-modal integration-config-modal" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`}>
       <header className="integration-config-heading">
-        <span className="integration-tool-icon"><Icon size={25}/></span>
+        <span className="integration-tool-icon"><img src={logo} alt=""/></span>
         <div><h2 id={`${id}-title`}>Configurar {name}</h2><p>Gere questionários com inteligência artificial.</p></div>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Fechar configuração"><X size={19}/></button>
       </header>
@@ -18,8 +18,8 @@ export function AiIntegrationPanel({ name, icon: Icon, integration, onClose }) {
       </div>
       <form onSubmit={(event) => { event.preventDefault(); void integration.save(); }}>
         <label className="field integration-secret-label" htmlFor={id}>Chave da API
-          <span className="integration-secret-field"><input id={id} type={showKey ? 'text' : 'password'} autoComplete="new-password" spellCheck="false" value={integration.apiKey} onChange={(event) => integration.setApiKey(event.target.value)} placeholder={integration.configured ? 'Cole uma nova chave para substituir' : 'Cole a chave da API'} aria-describedby={`${id}-help`}/><button type="button" className="integration-reveal-key" onClick={() => setShowKey((current) => !current)} aria-label={showKey ? 'Ocultar chave da API' : 'Mostrar chave da API'}>{showKey ? <EyeOff size={17}/> : <Eye size={17}/>}</button></span>
-          <small id={`${id}-help`}>{integration.configured ? 'A chave atual não é exibida. Deixe o campo vazio para mantê-la.' : 'A chave será armazenada de forma protegida nesta congregação.'}</small>
+          <span className="integration-secret-field"><input id={id} type={showKey ? 'text' : 'password'} autoComplete="new-password" spellCheck="false" value={integration.apiKey} onChange={(event) => integration.setApiKey(event.target.value)} placeholder={integration.configured ? '••••••••••••••••••••' : 'Cole a chave da API'} aria-describedby={`${id}-help`}/><button type="button" className="integration-reveal-key" onClick={() => setShowKey((current) => !current)} aria-label={showKey ? 'Ocultar chave da API' : 'Mostrar chave da API'}>{showKey ? <EyeOff size={17}/> : <Eye size={17}/>}</button></span>
+          <small id={`${id}-help`}>{integration.configured ? 'A chave armazenada fica protegida. Digite outra somente para substituí-la.' : 'A chave será armazenada de forma protegida nesta congregação.'}</small>
         </label>
         {integration.message && <p className="integration-dialog-message" role="status">{integration.message}</p>}
         <footer className="integration-config-footer">

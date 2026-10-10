@@ -64,10 +64,10 @@ export async function saveAiApiKey(
   value: unknown
 ) {
   const config = providerConfig[provider]
-  if (typeof value !== 'string' || value.trim().length > 2000) {
+  if (value !== null && (typeof value !== 'string' || value.trim().length > 2000)) {
     throw new Error('Informe um token válido de até 2.000 caracteres.')
   }
-  const apiKey = value.trim()
+  const apiKey = typeof value === 'string' ? value.trim() : ''
   const existing = await db
     .from('google_forms_integrations')
     .where('congregation_id', congregationId)
