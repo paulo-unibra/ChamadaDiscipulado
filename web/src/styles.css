@@ -88,3 +88,13 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .backdrop.show{border:0;padding:0}
 .login-art-copy h1,.login-art-copy p{color:#fff}
 @media(max-width:650px){.sidebar-collapsed{width:282px;flex-basis:282px}}
+
+.sidebar:not(.sidebar-collapsed){display:flex;flex-direction:column;min-height:0}
+.sidebar:not(.sidebar-collapsed)>.side-heading,.sidebar:not(.sidebar-collapsed)>.searchbox,.sidebar:not(.sidebar-collapsed)>.sidebar-bottom{flex:0 0 auto}
+.sidebar:not(.sidebar-collapsed)>.sidebar-nav{display:flex!important;flex:1 1 auto;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:3px;min-height:0;overflow-x:hidden;overflow-y:auto}
+.sidebar-nav>.nav-shortcuts{display:flex;flex:0 0 auto;flex-direction:column;gap:0;max-height:180px;margin:0 0 4px;padding:4px 0 7px;overflow-y:auto;border-bottom:1px solid #e9efeb}
+.sidebar-nav>.nav-shortcuts>small{flex:0 0 auto;padding:7px 13px 4px;color:#8a968f;font-size:9px;font-weight:700;letter-spacing:.8px}
+.sidebar:not(.sidebar-collapsed) .nav-group{display:flex;flex:0 0 auto;flex-direction:column;position:relative}
+.sidebar:not(.sidebar-collapsed) .nav-group-children{display:flex;flex:0 0 auto;flex-direction:column;position:relative;min-height:0}
+.sidebar:not(.sidebar-collapsed) .nav-entry{flex:0 0 36px;min-height:36px}
+.sidebar:not(.sidebar-collapsed) .sidebar-bottom{margin-top:auto;padding-top:8px}

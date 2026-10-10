@@ -682,7 +682,7 @@ function App({ token, setToken, activeCongregationId, setActiveCongregationId })
           <label className="searchbox"><Search size={16}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar no menu"/><kbd>/</kbd>{search && <button type="button" className="search-clear" onClick={() => setSearch('')} aria-label="Limpar busca"><X size={14}/></button>}</label>
           <nav className="sidebar-nav">
             {!search && pinnedMenuItems.length > 0 && <section className="nav-shortcuts"><small>FIXADOS</small>{pinnedMenuItems.map((item) => renderMenuEntry(item, 'nav-link-sub'))}</section>}
-            {!search && recentMenuItems.length > 0 && <section className="nav-shortcuts"><small>RECENTES</small>{recentMenuItems.slice(0, 5).map((item) => renderMenuEntry(item, 'nav-link-sub'))}</section>}
+            {!search && recentMenuItems.length > 0 && <section className="nav-shortcuts"><small>RECENTES</small>{recentMenuItems.slice(0, 3).map((item) => renderMenuEntry(item, 'nav-link-sub'))}</section>}
             {menu.map((group) => {
               const Icon = group.icon;
               if (group.path) return menuTextMatches(group.label) && <div className="nav-group" key={group.path}>{renderMenuEntry({ ...group, groupLabel: group.label }, 'nav-link-root')}</div>;
