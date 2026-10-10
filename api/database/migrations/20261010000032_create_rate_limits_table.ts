@@ -4,8 +4,7 @@ export default class extends BaseSchema {
   protected tableName = 'api_rate_limits'
 
   async up() {
-    if (await this.schema.hasTable(this.tableName)) return
-    await this.schema.createTable(this.tableName, (table) => {
+    await this.schema.createTableIfNotExists(this.tableName, (table) => {
       table.string('key', 191).primary()
       table.integer('attempts').unsigned().notNullable().defaultTo(0)
       table.timestamp('reset_at', { useTz: true }).notNullable()
