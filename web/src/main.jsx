@@ -786,28 +786,50 @@ function App() {
       document.setDrawColor(218, 229, 221); document.line(margin, dividerY, pageWidth - margin, dividerY);
       return showStudentName ? 44 : 39;
     };
-    let columnStartY = drawHeader(true);
-    let columnIndex = 0;
-    const columnY = [columnStartY, columnStartY];
+    const firstColumnStartY = 44, nextPageColumnStartY = 39, pageBottom = pageHeight - margin;
+    const pages = [{ startY: firstColumnStartY, columns: [[], []], heights: [0, 0] }];
+    let pageIndex = 0, columnIndex = 0;
     for (let index = 0; index < activeQuiz.questions.length; index += 1) {
       const question = activeQuiz.questions[index];
       document.setFont('helvetica', 'bold'); document.setFontSize(9.5); document.setTextColor(22, 41, 31);
       const questionLines = document.splitTextToSize(`${index + 1}. ${question.question}`, columnWidth);
-      const optionLines = question.options.flatMap((option) => document.splitTextToSize(option, columnWidth - 3));
+      document.setFont('helvetica', 'normal'); document.setFontSize(8);
+      const optionLines = question.options.map((option) => document.splitTextToSize(option, columnWidth - 3));
       const blockHeight = questionLines.length * questionLineHeight + optionLines.length * optionLineHeight + 7;
-      if (columnY[columnIndex] + blockHeight > pageHeight - margin) {
-        if (columnIndex === 0) {
-          columnIndex = 1;
-        } else {
-          document.addPage('a4', 'landscape'); columnStartY = drawHeader(); columnIndex = 0; columnY[0] = columnStartY; columnY[1] = columnStartY;
+      const layout = { question, questionLines, optionLines, blockHeight, number: index + 1 };
+      let currentPage = pages[pageIndex];
+      const availableHeight = pageBottom - currentPage.startY;
+      if (currentPage.heights[columnIndex] + blockHeight > availableHeight) {
+        if (columnIndex === 0 && currentPage.columns[0].length) columnIndex = 1;
+        currentPage = pages[pageIndex];
+        if (currentPage.heights[columnIndex] + blockHeight > pageBottom - currentPage.startY && currentPage.columns[columnIndex].length) {
+          pages.push({ startY: nextPageColumnStartY, columns: [[], []], heights: [0, 0] });
+          pageIndex += 1;
+          columnIndex = 0;
+          currentPage = pages[pageIndex];
         }
       }
-      const x = margin + columnIndex * (columnWidth + gap);
-      let y = columnY[columnIndex];
-      document.text(questionLines, x, y); y += questionLines.length * questionLineHeight + 2;
-      document.setFont('helvetica', 'normal'); document.setFontSize(8); document.setTextColor(57, 69, 62);
-      for (const option of question.options) { const lines = document.splitTextToSize(option, columnWidth - 3); document.text(lines, x + 3, y); y += lines.length * optionLineHeight; }
-      columnY[columnIndex] = y + 5;
+      currentPage.columns[columnIndex].push(layout);
+      currentPage.heights[columnIndex] += blockHeight;
+    }
+    for (let currentPageIndex = 0; currentPageIndex < pages.length; currentPageIndex += 1) {
+      const currentPage = pages[currentPageIndex];
+      if (currentPageIndex > 0) { document.addPage('a4', 'landscape'); drawHeader(); }
+      const availableHeight = pageBottom - currentPage.startY;
+      for (let currentColumn = 0; currentColumn < 2; currentColumn += 1) {
+        const items = currentPage.columns[currentColumn];
+        const extraGap = items.length > 1 ? Math.max(0, (availableHeight - currentPage.heights[currentColumn]) / (items.length - 1)) : 0;
+        const x = margin + currentColumn * (columnWidth + gap);
+        let y = currentPage.startY;
+        for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+          const item = items[itemIndex];
+          document.setFont('helvetica', 'bold'); document.setFontSize(9.5); document.setTextColor(22, 41, 31);
+          document.text(item.questionLines, x, y); y += item.questionLines.length * questionLineHeight + 2;
+          document.setFont('helvetica', 'normal'); document.setFontSize(8); document.setTextColor(57, 69, 62);
+          for (const lines of item.optionLines) { document.text(lines, x + 3, y); y += lines.length * optionLineHeight; }
+          y += 5 + (itemIndex < items.length - 1 ? extraGap : 0);
+        }
+      }
     }
     document.save(`questionario-${activeQuiz.lessonTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.pdf`);
   };
