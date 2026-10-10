@@ -4,6 +4,7 @@ export default class extends BaseSchema {
   protected tableName = 'auth_access_tokens'
 
   async up() {
+    if (await this.schema.hasTable(this.tableName)) return
     await this.schema.createTable(this.tableName, (table) => {
       table.increments('id').notNullable()
       table.string('tokenable_id', 254).notNullable()

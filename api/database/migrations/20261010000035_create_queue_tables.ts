@@ -2,39 +2,43 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 
 export default class extends BaseSchema {
   async up() {
-    await this.schema.createTable('queue_jobs', (table) => {
-      table.string('id', 255).notNullable()
-      table.string('queue', 255).notNullable()
-      table.enu('status', ['pending', 'active', 'delayed', 'completed', 'failed']).notNullable()
-      table.text('data').notNullable()
-      table.bigint('score').unsigned().nullable()
-      table.string('worker_id', 255).nullable()
-      table.bigint('acquired_at').unsigned().nullable()
-      table.bigint('execute_at').unsigned().nullable()
-      table.bigint('finished_at').unsigned().nullable()
-      table.text('error').nullable()
-      table.primary(['id', 'queue'])
-      table.index(['queue', 'status', 'score'])
-      table.index(['queue', 'status', 'execute_at'])
-      table.index(['queue', 'status', 'finished_at'])
-    })
-    await this.schema.createTable('queue_schedules', (table) => {
-      table.string('id', 255).primary()
-      table.string('status', 50).notNullable().defaultTo('active')
-      table.string('name', 255).notNullable()
-      table.text('payload').notNullable()
-      table.string('cron_expression', 255).nullable()
-      table.bigint('every_ms').unsigned().nullable()
-      table.string('timezone', 100).notNullable().defaultTo('UTC')
-      table.timestamp('from_date').nullable()
-      table.timestamp('to_date').nullable()
-      table.integer('run_limit').unsigned().nullable()
-      table.integer('run_count').unsigned().notNullable().defaultTo(0)
-      table.timestamp('next_run_at').nullable()
-      table.timestamp('last_run_at').nullable()
-      table.timestamp('created_at').notNullable().defaultTo(this.now())
-      table.index(['status', 'next_run_at'])
-    })
+    if (!(await this.schema.hasTable('queue_jobs'))) {
+      await this.schema.createTable('queue_jobs', (table) => {
+        table.string('id', 255).notNullable()
+        table.string('queue', 255).notNullable()
+        table.enu('status', ['pending', 'active', 'delayed', 'completed', 'failed']).notNullable()
+        table.text('data').notNullable()
+        table.bigint('score').unsigned().nullable()
+        table.string('worker_id', 255).nullable()
+        table.bigint('acquired_at').unsigned().nullable()
+        table.bigint('execute_at').unsigned().nullable()
+        table.bigint('finished_at').unsigned().nullable()
+        table.text('error').nullable()
+        table.primary(['id', 'queue'])
+        table.index(['queue', 'status', 'score'])
+        table.index(['queue', 'status', 'execute_at'])
+        table.index(['queue', 'status', 'finished_at'])
+      })
+    }
+    if (!(await this.schema.hasTable('queue_schedules'))) {
+      await this.schema.createTable('queue_schedules', (table) => {
+        table.string('id', 255).primary()
+        table.string('status', 50).notNullable().defaultTo('active')
+        table.string('name', 255).notNullable()
+        table.text('payload').notNullable()
+        table.string('cron_expression', 255).nullable()
+        table.bigint('every_ms').unsigned().nullable()
+        table.string('timezone', 100).notNullable().defaultTo('UTC')
+        table.timestamp('from_date').nullable()
+        table.timestamp('to_date').nullable()
+        table.integer('run_limit').unsigned().nullable()
+        table.integer('run_count').unsigned().notNullable().defaultTo(0)
+        table.timestamp('next_run_at').nullable()
+        table.timestamp('last_run_at').nullable()
+        table.timestamp('created_at').notNullable().defaultTo(this.now())
+        table.index(['status', 'next_run_at'])
+      })
+    }
   }
 
   async down() {
