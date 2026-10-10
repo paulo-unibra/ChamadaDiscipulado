@@ -7,6 +7,7 @@ import { isAbortError } from './types';
 import { useAiIntegration } from './use-ai-integration';
 import { useQuizzes } from './use-quizzes';
 import { AiIntegrationPanel } from './AiIntegrationPanel';
+import { Modal } from './Modal';
 import { ErrorBoundary } from './ErrorBoundary';
 import { DialogAccessibility } from './DialogAccessibility';
 import { QuizCountDialog, QuizViewDialog, ScaleMessageDialog } from './QuizDialogs';
@@ -131,6 +132,7 @@ function App({ token, setToken, activeCongregationId, setActiveCongregationId })
   const [preparingScale, setPreparingScale] = useState(false);
   const [integration, setIntegration] = useState({ enabled: false, formId: '', sections: {}, fields: {}, mappings: {}, fixedAnswers: {} });
   const [formQuestions, setFormQuestions] = useState([]), [integrationBusy, setIntegrationBusy] = useState(false), [integrationMessage, setIntegrationMessage] = useState('');
+  const [integrationDialog, setIntegrationDialog] = useState('');
   const chatGpt = useAiIntegration(apiFetch, 'chatgpt', Boolean(token));
   const deepSeek = useAiIntegration(apiFetch, 'deepseek', Boolean(token));
   const { jobs: quizJobs, notice: quizNotice, setNotice: setQuizNotice, connectionError: quizConnectionError, addJob } = useQuizzes(apiFetch, API, token, activeCongregationId);
@@ -711,77 +713,41 @@ function App({ token, setToken, activeCongregationId, setActiveCongregationId })
         {quizCountDraft && <QuizCountDialog draft={quizCountDraft} setDraft={setQuizCountDraft} providers={availableQuizProviders} generating={quizGeneratingLessonId === quizCountDraft.id} notice={quizNotice} onGenerate={requestQuizGeneration} onClose={() => { setQuizCountDraft(null); setQuizNotice(''); }}/>}
         {activeQuiz && <QuizViewDialog quiz={activeQuiz} congregation={activeCongregation} exporting={quizExporting} notice={quizNotice} onExport={exportQuizPdf} onClose={() => setActiveQuiz(null)}/>}
         {['relatorios', 'frequencia'].includes(page) && activeCongregation && <header className="report-brand">{activeCongregation.logoData && <img src={activeCongregation.logoData} alt="Logo"/>}<div><b>{activeCongregation.name}</b><span>{[activeCongregation.area && `Área ${activeCongregation.area}`, activeCongregation.sector && `Setor ${activeCongregation.sector}`].filter(Boolean).join(' · ')}</span></div></header>}
-         {page === 'integracoes' && <div className="integration-public-note">Cole o link público do formulário (<code>/forms/d/e/…/viewform</code>) ou o ID público. Os campos são lidos da página pública; não é necessária permissão de edição.</div>}
-        {unsentIntegrationRows.length > 0 && <section className="panel form-actions-panel"><PanelHeading icon={FileInput} title="Enviar itens ao Google Forms" description="Abra o formulário pré-preenchido e confirme aqui depois de enviar a resposta."/><div className="form-action-list">{unsentIntegrationRows.map((row) => { const key = `${row.sectionId}:${row.recordId}`; return <div className="form-action-row" key={key}><div className="form-action-name"><b>{row.title}</b><small>{integrationSections.find((section) => section.id === row.sectionId)?.title}</small></div><div className="form-action-buttons"><button className="button secondary form-open-button" onClick={() => openPrefilledForm(row)} title="Abrir formulário pré-preenchido"><FileInput size={16}/><span>Abrir formulário</span></button>{formOpenedItems[key] && <button className="button primary form-confirm-button" onClick={() => notify(() => markIntegrationItemSent(row))}><CircleCheck size={16}/><span>Marcar enviado</span></button>}</div></div>; })}</div></section>}
+         {unsentIntegrationRows.length > 0 && <section className="panel form-actions-panel"><PanelHeading icon={FileInput} title="Enviar itens ao Google Forms" description="Abra o formulário pré-preenchido e confirme aqui depois de enviar a resposta."/><div className="form-action-list">{unsentIntegrationRows.map((row) => { const key = `${row.sectionId}:${row.recordId}`; return <div className="form-action-row" key={key}><div className="form-action-name"><b>{row.title}</b><small>{integrationSections.find((section) => section.id === row.sectionId)?.title}</small></div><div className="form-action-buttons"><button className="button secondary form-open-button" onClick={() => openPrefilledForm(row)} title="Abrir formulário pré-preenchido"><FileInput size={16}/><span>Abrir formulário</span></button>{formOpenedItems[key] && <button className="button primary form-confirm-button" onClick={() => notify(() => markIntegrationItemSent(row))}><CircleCheck size={16}/><span>Marcar enviado</span></button>}</div></div>; })}</div></section>}
          {page === 'integracoes' && <>
-          <AiIntegrationPanel name="ChatGPT" icon={Bot} integration={chatGpt}/>
-          <AiIntegrationPanel name="DeepSeek" icon={Waves} integration={deepSeek}/>
-          <section className="panel integration-panel">
-            <PanelHeading icon={FileInput} title="Google Forms" description="Configure um link público e escolha os dados a pré-preencher." />
-            <div className="integration-status-row">
-              <div className="integration-description">
-                <span className={`status-dot ${integration.enabled ? 'on' : ''}`} />
-                <div>
-                  <b>{integration.enabled ? 'Integração ativada' : 'Integração desativada'}</b>
-                  <small>Configuração independente para {data.congregations.find((item) => item.id === activeCongregationId)?.name || 'a congregação selecionada'}</small>
-                </div>
+            <section className="panel integration-dashboard">
+              <header className="integration-dashboard-heading"><h2>Ferramentas disponíveis</h2><span>3 integrações</span></header>
+              <div className="integration-tool-grid">
+                {[
+                  { id: 'chatgpt', name: 'GPT', icon: Bot, description: 'Gere questionários a partir das lições.', configured: chatGpt.configured, open: () => setIntegrationDialog('chatgpt') },
+                  { id: 'deepseek', name: 'DeepSeek', icon: Waves, description: 'Gere questionários a partir das lições.', configured: deepSeek.configured, open: () => setIntegrationDialog('deepseek') },
+                  { id: 'google', name: 'Google Forms', icon: FileInput, description: 'Envie os dados para seus formulários.', configured: Boolean(integration.formId), active: integration.enabled, open: () => { setIntegrationMessage(''); setIntegrationDialog('google'); } },
+                ].map(({ id, name, icon: Icon, description, configured, active, open }) => <article className="integration-tool-card" key={id}>
+                  <span className={`integration-tool-card-icon ${id}`}><Icon size={30}/></span>
+                  <h3>{name}</h3>
+                  <p>{description}</p>
+                  <span className={`integration-status-pill ${configured ? 'configured' : ''}`}><i/>{configured ? (active === false ? 'Configurado · desativado' : 'Configurado') : 'Não configurado'}</span>
+                  <button type="button" className="integration-configure-button" onClick={open}>Configurar integração <ChevronRight size={17}/></button>
+                </article>)}
               </div>
-              <label className="switch-control" aria-label="Ativar integração Google Forms">
-                <input type="checkbox" checked={integration.enabled} onChange={(event) => setIntegrationValue('enabled', event.target.checked)} />
-                <span className="switch-slider" />
-              </label>
-            </div>
-            <div className="integration-setup-grid">
-              <label className="field">Link público ou ID do formulário
-                <input disabled={!integration.enabled} value={integration.formId} onChange={(event) => setIntegrationValue('formId', event.target.value)} placeholder="https://docs.google.com/forms/d/e/.../viewform" />
-              </label>
-              <button className="button secondary integration-fetch" disabled={!integration.enabled || !integration.formId || integrationBusy} onClick={loadFormQuestions}>
-                <RefreshCw size={15} />{integrationBusy ? 'Lendo campos…' : 'Ler campos públicos'}
-              </button>
-            </div>
-            <p className="integration-help">Os campos são lidos da página pública. Não é necessário conectar uma conta Google nem ter permissão de edição.</p>
-          </section>
-          <section className="panel">
-            <PanelHeading icon={FileInput} title="Valores fixos" description="Esses valores serão adicionados a todos os links pré-preenchidos desta congregação." />
-            <div className="fixed-answer-grid">{[['area', 'Área'], ['congregation', 'Congregação']].map(([key, label]) => {
-              const answer = integration.fixedAnswers?.[key] || { questionId: '', value: '' };
-              const question = formQuestions.find((item) => item.id === answer.questionId);
-              return <div className="fixed-answer-card" key={key}>
-                <b>{label}</b>
-                <label className="field">Pergunta do formulário
-                  <select disabled={!integration.enabled || !formQuestions.length} value={answer.questionId} onChange={(event) => setFixedAnswer(key, 'questionId', event.target.value)}>
-                    <option value="">{formQuestions.length ? 'Selecione a pergunta' : 'Leia os campos primeiro'}</option>
-                    {formQuestions.map((item) => <option value={item.id} key={item.id}>{item.title}</option>)}
-                  </select>
-                </label>
-                <label className="field">Valor fixo
-                  {question?.options?.length ? <select disabled={!integration.enabled} value={answer.value} onChange={(event) => setFixedAnswer(key, 'value', event.target.value)}><option value="">Selecione uma opção</option>{question.options.map((option) => <option value={option} key={option}>{option}</option>)}</select> : <input disabled={!integration.enabled || !question} value={answer.value} onChange={(event) => setFixedAnswer(key, 'value', event.target.value)} placeholder="Selecione a pergunta primeiro" />}
-                </label>
-              </div>;
-            })}</div>
-            <div className="integration-footer"><span className="integration-notice">Salve a configuração para aplicar Área e Congregação nos próximos links.</span><button className="button primary" disabled={integrationBusy} onClick={saveIntegration}><Save size={16} />Salvar valores</button></div>
-          </section>
-          <section className="panel">
-            <PanelHeading icon={Settings} title="Seções e campos" description="Ative as seções e faça o de/para de cada campo com uma pergunta do formulário." />
-            {integrationSections.map((section) => <article className="integration-section" key={section.id}>
-              <div className="integration-section-heading">
-                <div><b>{section.title}</b><small>{section.description}</small></div>
-                <label className="switch-control" aria-label={`Ativar ${section.title}`}><input type="checkbox" aria-label={`Ativar ${section.title}`} disabled={!integration.enabled} checked={Boolean(integration.sections[section.id])} onChange={(event) => setIntegration((current) => ({ ...current, sections: { ...current.sections, [section.id]: event.target.checked } }))} /><span className="switch-slider" /></label>
-              </div>
-              {integration.sections[section.id] && <div className="mapping-list">{section.fields.map((field) => {
-                const key = `${section.id}:${field}`;
-                return <div className="mapping-item" key={key}>
-                  <label className="mapping-check"><input type="checkbox" disabled={!integration.enabled} checked={integration.fields[key] !== false} onChange={(event) => setIntegration((current) => ({ ...current, fields: { ...current.fields, [key]: event.target.checked } }))} /><span>{field}</span></label>
-                  <select disabled={!integration.enabled || integration.fields[key] === false || !formQuestions.length} value={integration.mappings[key] || ''} onChange={(event) => setIntegration((current) => ({ ...current, mappings: { ...current.mappings, [key]: event.target.value } }))}>
-                    <option value="">{formQuestions.length ? 'Selecione a pergunta no Forms' : 'Leia os campos primeiro'}</option>
-                    {formQuestions.map((question) => <option value={question.id} key={question.id}>{question.title}</option>)}
-                  </select>
-                </div>;
-              })}</div>}
-            </article>)}
-            <div className="integration-footer"><span className="integration-notice">{integrationMessage}</span><button className="button primary" disabled={integrationBusy} onClick={saveIntegration}><Save size={16} />{integrationBusy ? 'Salvando…' : 'Salvar configuração'}</button></div>
-          </section>
-         </>}
+              <footer className="integration-dashboard-footer"><Activity size={16}/><span>{activeCongregation?.name || 'Selecione uma congregação'} · As configurações são independentes para cada congregação.</span></footer>
+            </section>
+            {integrationDialog === 'chatgpt' && <AiIntegrationPanel name="GPT" icon={Bot} integration={chatGpt} onClose={() => setIntegrationDialog('')}/>}
+            {integrationDialog === 'deepseek' && <AiIntegrationPanel name="DeepSeek" icon={Waves} integration={deepSeek} onClose={() => setIntegrationDialog('')}/>}
+            {integrationDialog === 'google' && <Modal className="integration-modal-overlay" onClose={() => setIntegrationDialog('')}>
+              <section className="convert-modal integration-config-modal google-form-config-modal" role="dialog" aria-modal="true" aria-labelledby="google-form-config-title">
+                <header className="integration-config-heading"><span className="integration-tool-icon google"><FileInput size={23}/></span><div><h2 id="google-form-config-title">Configurar Google Forms</h2><p>Conecte seu formulário e escolha os dados a pré-preencher.</p></div><button type="button" className="icon-button" onClick={() => setIntegrationDialog('')} aria-label="Fechar configuração"><X size={19}/></button></header>
+                <div className="integration-public-note">Cole o link público do formulário (<code>/forms/d/e/…/viewform</code>). Os campos são lidos da página pública; não é necessária permissão de edição.</div>
+                <div className="integration-status-row"><div className="integration-description"><span className={`status-dot ${integration.enabled ? 'on' : ''}`} /><div><b>{integration.enabled ? 'Integração ativada' : integration.formId ? 'Formulário configurado' : 'Integração não configurada'}</b><small>Vinculada a {activeCongregation?.name || 'esta congregação'}.</small></div></div><label className="switch-control" aria-label="Ativar integração Google Forms"><input type="checkbox" checked={integration.enabled} onChange={(event) => setIntegrationValue('enabled', event.target.checked)} /><span className="switch-slider" /></label></div>
+                <div className="integration-setup-grid"><label className="field">Link público ou ID do formulário<input disabled={!integration.enabled} value={integration.formId} onChange={(event) => setIntegrationValue('formId', event.target.value)} placeholder="https://docs.google.com/forms/d/e/.../viewform" /></label><button type="button" className="button secondary integration-fetch" disabled={!integration.enabled || !integration.formId || integrationBusy} onClick={loadFormQuestions}><RefreshCw size={15} />{integrationBusy ? 'Lendo campos…' : 'Ler campos públicos'}</button></div>
+                {integrationMessage && <p className="integration-dialog-message" role="status">{integrationMessage}</p>}
+                <p className="integration-help">Os campos são lidos da página pública. Não é necessário conectar uma conta Google.</p>
+                <section className="integration-modal-section"><PanelHeading icon={FileInput} title="Valores fixos" description="Aplicados aos links pré-preenchidos desta congregação."/><div className="fixed-answer-grid">{[['area', 'Área'], ['congregation', 'Congregação']].map(([key, label]) => { const answer = integration.fixedAnswers?.[key] || { questionId: '', value: '' }; const question = formQuestions.find((item) => item.id === answer.questionId); return <div className="fixed-answer-card" key={key}><b>{label}</b><label className="field">Pergunta do formulário<select disabled={!integration.enabled || !formQuestions.length} value={answer.questionId} onChange={(event) => setFixedAnswer(key, 'questionId', event.target.value)}><option value="">{formQuestions.length ? 'Selecione a pergunta' : 'Leia os campos primeiro'}</option>{formQuestions.map((item) => <option value={item.id} key={item.id}>{item.title}</option>)}</select></label><label className="field">Valor fixo{question?.options?.length ? <select disabled={!integration.enabled} value={answer.value} onChange={(event) => setFixedAnswer(key, 'value', event.target.value)}><option value="">Selecione uma opção</option>{question.options.map((option) => <option value={option} key={option}>{option}</option>)}</select> : <input disabled={!integration.enabled || !question} value={answer.value} onChange={(event) => setFixedAnswer(key, 'value', event.target.value)} placeholder="Selecione a pergunta primeiro"/>}</label></div>; })}</div></section>
+                <section className="integration-modal-section"><PanelHeading icon={Settings} title="Seções e campos" description="Ative as seções e associe cada campo à pergunta do formulário."/>{integrationSections.map((section) => <article className="integration-section" key={section.id}><div className="integration-section-heading"><div><b>{section.title}</b><small>{section.description}</small></div><label className="switch-control" aria-label={`Ativar ${section.title}`}><input type="checkbox" aria-label={`Ativar ${section.title}`} disabled={!integration.enabled} checked={Boolean(integration.sections[section.id])} onChange={(event) => setIntegration((current) => ({ ...current, sections: { ...current.sections, [section.id]: event.target.checked } }))}/><span className="switch-slider"/></label></div>{integration.sections[section.id] && <div className="mapping-list">{section.fields.map((field) => { const key = `${section.id}:${field}`; return <div className="mapping-item" key={key}><label className="mapping-check"><input type="checkbox" disabled={!integration.enabled} checked={integration.fields[key] !== false} onChange={(event) => setIntegration((current) => ({ ...current, fields: { ...current.fields, [key]: event.target.checked } }))}/><span>{field}</span></label><select disabled={!integration.enabled || integration.fields[key] === false || !formQuestions.length} value={integration.mappings[key] || ''} onChange={(event) => setIntegration((current) => ({ ...current, mappings: { ...current.mappings, [key]: event.target.value } }))}><option value="">{formQuestions.length ? 'Selecione a pergunta no Forms' : 'Leia os campos primeiro'}</option>{formQuestions.map((question) => <option value={question.id} key={question.id}>{question.title}</option>)}</select></div>; })}</div>}</article>)}</section>
+                <footer className="integration-config-footer"><span className="integration-notice">{integrationMessage || 'Salve para aplicar as alterações.'}</span><button type="button" className="button secondary" onClick={() => setIntegrationDialog('')}>Cancelar</button><button type="button" className="button primary" disabled={integrationBusy} onClick={saveIntegration}><Save size={15}/>{integrationBusy ? 'Salvando…' : 'Salvar integração'}</button></footer>
+              </section>
+            </Modal>}
+          </>}
          {page === 'permissoes' && <React.Suspense fallback={<p role="status">Carregando permissões…</p>}><PermissionsPage key={activeCongregationId} congregationId={activeCongregationId} congregationName={activeCongregation?.name}/></React.Suspense>}
         {page === 'inicio' && <React.Suspense fallback={<p role="status">Carregando visão geral…</p>}><OverviewPage data={data} stats={stats} records={records} nav={nav} reload={reload} formatDate={formatDate}/></React.Suspense>}
         {page === 'novos-convertidos' && <>

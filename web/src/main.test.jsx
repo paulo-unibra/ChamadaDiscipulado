@@ -48,6 +48,29 @@ function mount() {
 }
 
 describe('fluxos do painel', () => {
+  it('exibe integração configurada sem expor a chave armazenada', async () => {
+    fetch.mockImplementation(async (input) => {
+      const url = new URL(input);
+      if (url.pathname === '/integrations/chatgpt') return new Response(JSON.stringify({ configured: true }), { status: 200 });
+      if (url.pathname === '/integrations/deepseek') return new Response(JSON.stringify({ configured: false }), { status: 200 });
+      return new Response(JSON.stringify(payloadFor(url)), { status: 200 });
+    });
+    mount();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Configurar integração' }))[0]);
+    expect(await screen.findByText('Integração configurada')).toBeVisible();
+    expect(screen.getByLabelText(/Chave da API/)).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Remover integração' })).toBeEnabled();
+  });
+
+  it('apresenta as ferramentas em cartões e abre a configuração escolhida', async () => {
+    mount();
+    const configureButtons = await screen.findAllByRole('button', { name: 'Configurar integração' });
+    expect(configureButtons).toHaveLength(3);
+    fireEvent.click(configureButtons[2]);
+    expect(await screen.findByRole('dialog', { name: /Configurar Google Forms/ })).toBeVisible();
+    expect(screen.getByLabelText('Ativar integração Google Forms')).toBeInTheDocument();
+  });
+
   it('mantém os tokens da congregação B quando uma resposta antiga de A chega depois', async () => {
     const deferred = [];
     fetch.mockImplementation((input) => {
@@ -61,10 +84,13 @@ describe('fluxos do painel', () => {
     mount();
     const selector = await screen.findByRole('combobox', { name: 'CONGREGAÇÃO' });
     fireEvent.change(selector, { target: { value: 'congregacao-b' } });
-    const token = await screen.findByRole('textbox', { name: /^Token da API ChatGPT/ });
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Configurar integração' })).toHaveLength(3));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Configurar integração' })[0]);
+    expect(await screen.findByRole('heading', { name: 'Configurar GPT' })).toBeVisible();
+    const token = await screen.findByLabelText(/Chave da API/);
     await waitFor(() => expect(token).toHaveValue('token-congregacao-b'));
     await act(async () => { deferred.forEach((resolve) => resolve()); });
-    expect(screen.getByRole('textbox', { name: /^Token da API ChatGPT/ })).toHaveValue('token-congregacao-b');
+    expect(screen.getByLabelText(/Chave da API/)).toHaveValue('token-congregacao-b');
     expect(screen.getByRole('combobox', { name: 'CONGREGAÇÃO' })).toHaveValue('congregacao-b');
   });
 
