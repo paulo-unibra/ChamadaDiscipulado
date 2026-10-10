@@ -2,18 +2,25 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 
 export default class extends BaseSchema {
   async up() {
-    await this.schema.createTableIfNotExists('admin_credentials', (table) => {
-      table.string('email', 254).primary()
-      table.string('password_hash', 255).notNullable()
-      table.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(this.now())
-    })
-    await this.schema.createTableIfNotExists('api_login_challenges', (table) => {
-      table.string('id', 36).primary()
-      table.string('email', 254).notNullable()
-      table.string('code_hash', 255).notNullable()
-      table.timestamp('expires_at', { useTz: true }).notNullable().index()
-      table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(this.now())
-    })
+    await this.schema.raw(`
+      CREATE TABLE IF NOT EXISTS admin_credentials (
+        email varchar(254) NOT NULL,
+        password_hash varchar(255) NOT NULL,
+        updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (email)
+      ) ENGINE=InnoDB
+    `)
+    await this.schema.raw(`
+      CREATE TABLE IF NOT EXISTS api_login_challenges (
+        id varchar(36) NOT NULL,
+        email varchar(254) NOT NULL,
+        code_hash varchar(255) NOT NULL,
+        expires_at timestamp NOT NULL,
+        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX api_login_challenges_expires_at_index (expires_at)
+      ) ENGINE=InnoDB
+    `)
   }
 
   async down() {

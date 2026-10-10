@@ -4,24 +4,24 @@ export default class extends BaseSchema {
   protected tableName = 'auth_access_tokens'
 
   async up() {
-    await this.schema.createTableIfNotExists(this.tableName, (table) => {
-      table.increments('id').notNullable()
-      table.string('tokenable_id', 254).notNullable()
-      table.string('type').notNullable()
-      table.string('name').nullable()
-      table.string('hash', 64).notNullable()
-      table.json('abilities').notNullable()
-      table.timestamp('created_at', { useTz: true }).notNullable()
-      table.timestamp('updated_at', { useTz: true }).notNullable()
-      table.timestamp('last_used_at', { useTz: true }).nullable()
-      table.timestamp('expires_at', { useTz: true }).nullable()
-      table.index(['tokenable_id', 'type'])
-      table
-        .foreign('tokenable_id')
-        .references('email')
-        .inTable('admin_credentials')
-        .onDelete('CASCADE')
-    })
+    await this.schema.raw(`
+      CREATE TABLE IF NOT EXISTS auth_access_tokens (
+        id int unsigned NOT NULL AUTO_INCREMENT,
+        tokenable_id varchar(254) NOT NULL,
+        type varchar(255) NOT NULL,
+        name varchar(255) NULL,
+        hash varchar(64) NOT NULL,
+        abilities json NOT NULL,
+        created_at timestamp NOT NULL,
+        updated_at timestamp NOT NULL,
+        last_used_at timestamp NULL,
+        expires_at timestamp NULL,
+        PRIMARY KEY (id),
+        INDEX auth_access_tokens_tokenable_id_type_index (tokenable_id, type),
+        CONSTRAINT auth_access_tokens_tokenable_id_foreign
+          FOREIGN KEY (tokenable_id) REFERENCES admin_credentials(email) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    `)
   }
 
   async down() {
