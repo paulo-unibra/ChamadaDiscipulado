@@ -1,5 +1,6 @@
 import { randomInt, randomUUID } from 'node:crypto'
 import { Secret } from '@adonisjs/core/helpers'
+import db from '@adonisjs/lucid/services/db'
 import env from '#start/env'
 import AdminCredential from '#models/admin_credential'
 
@@ -26,11 +27,17 @@ class AuthService {
         credential = await AdminCredential.find(email)
       }
     }
+    if (credential) {
+      await db.rawQuery(
+        'INSERT IGNORE INTO admin_congregations (admin_email, congregation_id) SELECT ?, id FROM congregations',
+        [email]
+      )
+    }
     return credential
   }
 
   async beginLogin(userEmail: string, candidate: string) {
-    const [{ default: hash }, { default: db }] = await Promise.all([
+    const [{ default: hash }, { default: dbConnection }] = await Promise.all([
       import('@adonisjs/core/services/hash'),
       import('@adonisjs/lucid/services/db'),
     ])
@@ -58,8 +65,8 @@ class AuthService {
     })
     if (!result.ok) throw new Error('Não foi possível enviar o código de verificação.')
 
-    await db.from('api_login_challenges').where('expires_at', '<', new Date()).delete()
-    await db.table('api_login_challenges').insert({
+    await dbConnection.from('api_login_challenges').where('expires_at', '<', new Date()).delete()
+    await dbConnection.table('api_login_challenges').insert({
       id: challenge,
       email,
       code_hash: await hash.make(code),
@@ -69,11 +76,24 @@ class AuthService {
   }
 
   async finishLogin(challenge: string, code: string) {
-    const [{ default: hash }, { default: db }] = await Promise.all([
+    const email = await this.consumeLoginChallenge(challenge, code)
+    if (!email) return null
+    const credential = await AdminCredential.find(email)
+    if (!credential) return null
+
+    const issuedToken = await AdminCredential.accessTokens.create(credential, ['*'], {
+      name: 'Chamada Discipulado Web',
+    })
+    const token = issuedToken.value?.release()
+    return token ? { token, email: credential.email } : null
+  }
+
+  async consumeLoginChallenge(challenge: string, code: string) {
+    const [{ default: hash }, { default: dbConnection }] = await Promise.all([
       import('@adonisjs/core/services/hash'),
       import('@adonisjs/lucid/services/db'),
     ])
-    const item = await db.transaction(async (trx) => {
+    const item = await dbConnection.transaction(async (trx) => {
       const challengeRow = await trx
         .from('api_login_challenges')
         .where('id', challenge)
@@ -85,14 +105,7 @@ class AuthService {
       return challengeRow
     })
     if (!item || !(await hash.verify(item.code_hash, code))) return null
-    const credential = await AdminCredential.find(item.email)
-    if (!credential) return null
-
-    const issuedToken = await AdminCredential.accessTokens.create(credential, ['*'], {
-      name: 'Chamada Discipulado Web',
-    })
-    const token = issuedToken.value?.release()
-    return token ? { token, email: credential.email } : null
+    return item.email as string
   }
 
   async verifyToken(token: string) {

@@ -16,6 +16,8 @@ const SchoolController = () => import('#controllers/school_controller')
 const AuthController = () => import('#controllers/auth_controller')
 const IntegrationsController = () => import('#controllers/integrations_controller')
 const QuizzesController = () => import('#controllers/quizzes_controller')
+const McpController = () => import('#controllers/mcp_controller')
+const McpOauthController = () => import('#controllers/mcp_oauth_controller')
 
 router.get('/', async () => {
   return {
@@ -36,6 +38,20 @@ router.get('/health', async ({ request, response }) => {
     return response.serviceUnavailable({ status: 'unavailable', database: 'unavailable' })
   }
 })
+router.post('/mcp', [McpController, 'handle'])
+router.get('/mcp', [McpController, 'get'])
+router.get('/.well-known/oauth-protected-resource', [McpOauthController, 'protectedResource'])
+router.get('/.well-known/oauth-protected-resource/mcp', [McpOauthController, 'protectedResource'])
+router.get('/.well-known/oauth-authorization-server', [
+  McpOauthController,
+  'authorizationServerMetadata',
+])
+router.post('/oauth/register', [McpOauthController, 'register']).use(middleware.rateLimit())
+router.get('/oauth/authorize', [McpOauthController, 'authorize'])
+router.post('/oauth/authorize', [McpOauthController, 'authorizePost']).use(middleware.rateLimit())
+router.post('/oauth/token', [McpOauthController, 'token']).use(middleware.rateLimit())
+router.post('/oauth/revoke', [McpOauthController, 'revoke']).use(middleware.rateLimit())
+
 
 router.post('/auth/login', [AuthController, 'login']).use(middleware.rateLimit())
 router.post('/auth/verify', [AuthController, 'verify']).use(middleware.rateLimit())
