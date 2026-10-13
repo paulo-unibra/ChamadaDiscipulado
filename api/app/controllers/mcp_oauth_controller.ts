@@ -57,7 +57,7 @@ function keepSubmitterSuccessful(html: string) {
     .replace('button.disabled=true;', 'button.setAttribute("aria-disabled","true");')
     .replace(
       ">document.addEventListener('submit',event=>{const form=event.target;",
-      ">console.info('[Discipulado OAuth] Tela OAuth carregada');document.addEventListener('submit',event=>{const form=event.target;"
+      ">console.info('[Discipulado OAuth] Tela OAuth carregada');document.addEventListener('securitypolicyviolation',event=>{console.error('[Discipulado OAuth] Navegação bloqueada pela política de segurança',{directive:event.violatedDirective})});document.addEventListener('submit',event=>{const form=event.target;"
     )
     .replace(
       "if(form.dataset.submitted){event.preventDefault();return}form.dataset.submitted='true';",
@@ -65,7 +65,7 @@ function keepSubmitterSuccessful(html: string) {
     )
 }
 
-function htmlPage(response: HttpContext['response'], value: ReturnType<typeof page>) {
+export function htmlPage(response: HttpContext['response'], value: ReturnType<typeof page>) {
   const nonce = randomBytes(18).toString('base64url')
   const formAction = escapeHtml(`${mcpBaseUrl()}/oauth/authorize`)
   const content = value.content
@@ -77,7 +77,7 @@ function htmlPage(response: HttpContext['response'], value: ReturnType<typeof pa
   response.header('X-Frame-Options', 'DENY')
   response.header(
     'Content-Security-Policy',
-    `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`
+    `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; form-action 'self' https://chatgpt.com; base-uri 'none'; frame-ancestors 'none'`
   )
   return response
     .status(value.status)
