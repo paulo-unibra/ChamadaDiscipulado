@@ -49,7 +49,12 @@ function page(title: string, content: string, status = 200) {
 }
 
 function keepSubmitterSuccessful(html: string) {
-  return html.replace('button.disabled=true;', 'button.setAttribute("aria-disabled","true");')
+  return html
+    .replace(
+      "if(button.name){const hidden=document.createElement('input');hidden.type='hidden';hidden.name=button.name;hidden.value=button.value;form.append(hidden)}",
+      ''
+    )
+    .replace('button.disabled=true;', 'button.setAttribute("aria-disabled","true");')
 }
 
 function htmlPage(response: HttpContext['response'], value: ReturnType<typeof page>) {
