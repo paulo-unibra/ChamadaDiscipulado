@@ -55,6 +55,14 @@ function keepSubmitterSuccessful(html: string) {
       ''
     )
     .replace('button.disabled=true;', 'button.setAttribute("aria-disabled","true");')
+    .replace(
+      ">document.addEventListener('submit',event=>{const form=event.target;",
+      ">console.info('[Discipulado OAuth] Tela OAuth carregada');document.addEventListener('submit',event=>{const form=event.target;"
+    )
+    .replace(
+      "if(form.dataset.submitted){event.preventDefault();return}form.dataset.submitted='true';",
+      "const action=form.querySelector('input[name=action]')?.value||'authorize';if(form.dataset.submitted){console.warn('[Discipulado OAuth] Envio duplicado bloqueado',{action});event.preventDefault();return}console.info('[Discipulado OAuth] Envio iniciado',{action,decision:event.submitter?.value||null});form.dataset.submitted='true';"
+    )
 }
 
 function htmlPage(response: HttpContext['response'], value: ReturnType<typeof page>) {
