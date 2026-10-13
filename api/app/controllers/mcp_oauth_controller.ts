@@ -1,4 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
+import { randomBytes } from 'node:crypto'
 import db from '@adonisjs/lucid/services/db'
 import authService from '#services/auth_service'
 import {
@@ -48,21 +49,24 @@ function page(title: string, content: string, status = 200) {
 }
 
 function htmlPage(response: HttpContext['response'], value: ReturnType<typeof page>) {
+  const nonce = randomBytes(18).toString('base64url')
   const formAction = escapeHtml(`${mcpBaseUrl()}/oauth/authorize`)
-  const content = value.content.replaceAll('action="/oauth/authorize"', `action="${formAction}"`)
+  const content = value.content
+    .replaceAll('action="/oauth/authorize"', `action="${formAction}"`)
+    .replaceAll('<form ', '<form data-submit-once ')
   response.header('Cache-Control', 'no-store')
   response.header('Pragma', 'no-cache')
   response.header('X-Content-Type-Options', 'nosniff')
   response.header('X-Frame-Options', 'DENY')
   response.header(
     'Content-Security-Policy',
-    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"
+    `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'`
   )
   return response
     .status(value.status)
     .type('html')
     .send(
-      `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(value.title)}</title><style>body{font:16px system-ui,sans-serif;max-width:520px;margin:8vh auto;padding:24px;color:#183128;background:#f6f8f5}main{background:#fff;border:1px solid #dce5df;border-radius:16px;padding:28px;box-shadow:0 12px 40px #18312812}h1{font-size:24px;margin:0 0 8px}p{line-height:1.5;color:#51635a}label{display:block;font-weight:600;margin:16px 0 6px}input{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac8bf;border-radius:8px;font:inherit}button{padding:12px 16px;border:0;border-radius:8px;background:#18794e;color:#fff;font:inherit;font-weight:700;cursor:pointer;margin-top:18px}button.secondary{background:#e8eee9;color:#244536;margin-left:8px}.permissions{padding-left:22px;line-height:1.8}.brand{font-size:12px;letter-spacing:.12em;color:#18794e;font-weight:700;margin-bottom:20px}.error{color:#a12727;background:#fff2f0;padding:12px;border-radius:8px}</style></head><body><main><div class="brand">CHAMADA DISCIPULADO</div>${content}</main></body></html>`
+      `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(value.title)}</title><style>body{font:16px system-ui,sans-serif;max-width:520px;margin:8vh auto;padding:24px;color:#183128;background:#f6f8f5}main{background:#fff;border:1px solid #dce5df;border-radius:16px;padding:28px;box-shadow:0 12px 40px #18312812}h1{font-size:24px;margin:0 0 8px}p{line-height:1.5;color:#51635a}label{display:block;font-weight:600;margin:16px 0 6px}input{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bac8bf;border-radius:8px;font:inherit}button{padding:12px 16px;border:0;border-radius:8px;background:#18794e;color:#fff;font:inherit;font-weight:700;cursor:pointer;margin-top:18px}button.secondary{background:#e8eee9;color:#244536;margin-left:8px}.permissions{padding-left:22px;line-height:1.8}.brand{font-size:12px;letter-spacing:.12em;color:#18794e;font-weight:700;margin-bottom:20px}.error{color:#a12727;background:#fff2f0;padding:12px;border-radius:8px}</style></head><body><main><div class="brand">CHAMADA DISCIPULADO</div>${content}</main><script nonce="${nonce}">document.addEventListener('submit',event=>{const form=event.target;if(!(form instanceof HTMLFormElement)||!form.hasAttribute('data-submit-once'))return;if(form.dataset.submitted){event.preventDefault();return}form.dataset.submitted='true';const button=event.submitter;if(button){if(button.name){const hidden=document.createElement('input');hidden.type='hidden';hidden.name=button.name;hidden.value=button.value;form.append(hidden)}button.disabled=true;button.textContent='Enviando…'}})</script></body></html>`
     )
 }
 

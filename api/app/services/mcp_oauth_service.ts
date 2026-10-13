@@ -13,7 +13,7 @@ export const MCP_SCOPES = [
 
 const ACCESS_TOKEN_SECONDS = 15 * 60
 const REFRESH_TOKEN_SECONDS = 30 * 24 * 60 * 60
-const FLOW_SECONDS = 10 * 60
+const FLOW_SECONDS = 15 * 60
 const CODE_SECONDS = 5 * 60
 
 export function mcpBaseUrl() {
