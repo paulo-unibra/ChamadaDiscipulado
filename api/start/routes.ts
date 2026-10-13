@@ -52,7 +52,6 @@ router.post('/oauth/authorize', [McpOauthController, 'authorizePost']).use(middl
 router.post('/oauth/token', [McpOauthController, 'token']).use(middleware.rateLimit())
 router.post('/oauth/revoke', [McpOauthController, 'revoke']).use(middleware.rateLimit())
 
-
 router.post('/auth/login', [AuthController, 'login']).use(middleware.rateLimit())
 router.post('/auth/verify', [AuthController, 'verify']).use(middleware.rateLimit())
 router.get('/auth/session', [AuthController, 'session']).use(middleware.requireAuth())

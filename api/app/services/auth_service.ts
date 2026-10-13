@@ -1,6 +1,5 @@
 import { randomInt, randomUUID } from 'node:crypto'
 import { Secret } from '@adonisjs/core/helpers'
-import db from '@adonisjs/lucid/services/db'
 import env from '#start/env'
 import AdminCredential from '#models/admin_credential'
 
@@ -28,7 +27,8 @@ class AuthService {
       }
     }
     if (credential) {
-      await db.rawQuery(
+      const { default: connection } = await import('@adonisjs/lucid/services/db')
+      await connection.rawQuery(
         'INSERT IGNORE INTO admin_congregations (admin_email, congregation_id) SELECT ?, id FROM congregations',
         [email]
       )
