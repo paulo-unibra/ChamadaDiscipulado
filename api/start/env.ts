@@ -35,5 +35,4 @@ export default await Env.create(new URL('../', import.meta.url), {
   RESEND_API_KEY: Env.schema.string.optional(),
   RESEND_FROM_EMAIL: Env.schema.string.optional(),
   RESEND_FROM_NAME: Env.schema.string.optional(),
-  MCP_PUBLIC_URL: Env.schema.string.optional(),
 })
