@@ -1,15 +1,19 @@
 import type { HttpContext } from '@adonisjs/core/http'
+import { randomUUID } from 'node:crypto'
 import db from '@adonisjs/lucid/services/db'
+import { CONVERSION_EVENTS } from '#services/conversion_events'
 import {
   getCongregationsForAdmin,
   mcpResource,
   validateAccessToken,
 } from '#services/mcp_oauth_service'
+import { createNewConvert, NewConvertValidationError } from '#services/new_convert_service'
 
 const TOOL_SCOPES: Record<string, string> = {
   get_profile: 'congregations:read',
   list_congregations: 'congregations:read',
   search_new_converts: 'converts:read',
+  create_new_convert: 'converts:write',
   list_converts_without_discipleship: 'converts:read',
   list_classes: 'classes:read',
   query_attendance: 'attendance:read',
@@ -99,6 +103,59 @@ function toolDefinitions() {
       },
       securitySchemes: scope(TOOL_SCOPES.search_new_converts),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    },
+    {
+      name: 'create_new_convert',
+      title: 'Cadastrar novo convertido',
+      description:
+        'Cria um cadastro de novo convertido na congregação autorizada. Colete os dados necessários e peça confirmação explícita ao usuário antes de cadastrar. Se houver dúvida sobre cadastro existente, use primeiro search_new_converts.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          congregationId: {
+            type: 'string',
+            description: 'ID da congregação autorizada; opcional se houver apenas uma.',
+          },
+          name: { type: 'string', minLength: 1, maxLength: 255 },
+          eventName: { type: 'string', enum: CONVERSION_EVENTS },
+          conversionDate: {
+            type: 'string',
+            pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+            description: 'Data da conversão no formato AAAA-MM-DD.',
+          },
+          birthDate: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+          contactPhone: { type: 'string', maxLength: 40 },
+          cep: { type: 'string', description: 'CEP com 8 dígitos.' },
+          street: { type: 'string', maxLength: 255 },
+          number: { type: 'string', maxLength: 255 },
+          complement: { type: 'string', maxLength: 255 },
+          neighborhood: { type: 'string', maxLength: 255 },
+          city: { type: 'string', maxLength: 255 },
+          state: { type: 'string', maxLength: 2, description: 'UF do estado.' },
+        },
+        required: ['name', 'eventName', 'conversionDate'],
+        additionalProperties: false,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          congregationId: { type: 'string' },
+          name: { type: 'string' },
+          eventName: { type: 'string' },
+          conversionDate: { type: 'string' },
+          message: { type: 'string' },
+        },
+        required: ['id', 'congregationId', 'name', 'eventName', 'conversionDate', 'message'],
+        additionalProperties: false,
+      },
+      securitySchemes: scope(TOOL_SCOPES.create_new_convert),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
     },
     {
       name: 'list_converts_without_discipleship',
@@ -328,14 +385,21 @@ export default class McpController {
       const data = await this.executeTool(
         name,
         args as Record<string, unknown>,
-        String(token.subject)
+        String(token.subject),
+        request
       )
       return { jsonrpc: '2.0', id: rpc.id, result: toolResponse(data) }
     } catch (error) {
       return {
         jsonrpc: '2.0',
         id: rpc.id,
-        result: toolError(error instanceof Error ? error.message : 'Falha ao consultar os dados.'),
+        result: toolError(
+          error instanceof NewConvertValidationError
+            ? error.message
+            : error instanceof Error && name !== 'create_new_convert'
+              ? error.message
+              : 'Não foi possível executar esta ferramenta.'
+        ),
       }
     }
   }
@@ -345,7 +409,12 @@ export default class McpController {
     return resolveAuthorizedCongregation(available, requestedId)
   }
 
-  private async executeTool(name: string, args: Record<string, unknown>, email: string) {
+  private async executeTool(
+    name: string,
+    args: Record<string, unknown>,
+    email: string,
+    request: HttpContext['request']
+  ) {
     if (name === 'get_profile') {
       const { createHash } = await import('node:crypto')
       const opaqueId = createHash('sha256').update(email).digest('hex').slice(0, 32)
@@ -358,6 +427,33 @@ export default class McpController {
     }
     const requestedId = text(args.congregationId)
     const congregationId = await this.authorizedCongregation(email, requestedId)
+    if (name === 'create_new_convert') {
+      return db.transaction(async (trx) => {
+        const created = await createNewConvert(trx, args, congregationId)
+        await trx.table('audit_logs').insert({
+          id: randomUUID(),
+          action: 'new_convert.create',
+          entity_type: 'new_convert',
+          entity_id: created.id,
+          details: JSON.stringify({
+            name: created.name,
+            eventName: created.eventName,
+            conversionDate: created.conversionDate,
+            source: 'mcp',
+          }),
+          ip: request.ip() || null,
+          user_agent: (request.header('user-agent') || '').slice(0, 255) || null,
+        })
+        return {
+          id: created.id,
+          congregationId,
+          name: created.name,
+          eventName: created.eventName,
+          conversionDate: created.conversionDate,
+          message: 'Cadastro de novo convertido criado com sucesso.',
+        }
+      })
+    }
     if (name === 'search_new_converts') {
       const query = text(args.query)
       if (!query) throw new Error('Informe o nome, atividade ou telefone para buscar.')

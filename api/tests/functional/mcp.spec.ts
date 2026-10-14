@@ -44,7 +44,7 @@ test.group('ChatGPT MCP discovery and transport', () => {
     assert.deepEqual(response.body().result.capabilities, { tools: { listChanged: false } })
   })
 
-  test('lists only read tools with OAuth scopes', async ({ client, assert }) => {
+  test('lists read and write tools with the required OAuth scopes', async ({ client, assert }) => {
     const response = await client
       .post('/mcp')
       .header('Accept', 'application/json, text/event-stream')
@@ -52,7 +52,8 @@ test.group('ChatGPT MCP discovery and transport', () => {
     response.assertStatus(200)
     const tools = response.body().result.tools as Array<{
       name: string
-      securitySchemes: Array<{ type: string }>
+      securitySchemes: Array<{ type: string; scopes: string[] }>
+      annotations?: { readOnlyHint?: boolean }
     }>
     assert.deepEqual(
       tools.map((tool) => tool.name),
@@ -60,6 +61,7 @@ test.group('ChatGPT MCP discovery and transport', () => {
         'get_profile',
         'list_congregations',
         'search_new_converts',
+        'create_new_convert',
         'list_converts_without_discipleship',
         'list_classes',
         'query_attendance',
@@ -68,6 +70,9 @@ test.group('ChatGPT MCP discovery and transport', () => {
     assert.isTrue(
       tools.every((tool) => tool.securitySchemes.some((scheme) => scheme.type === 'oauth2'))
     )
+    const createTool = tools.find((tool) => tool.name === 'create_new_convert')
+    assert.isFalse(createTool?.annotations?.readOnlyHint)
+    assert.include(createTool?.securitySchemes[0].scopes, 'converts:write')
   })
 
   test('rejects GET streaming when the server does not open SSE sessions', async ({ client }) => {

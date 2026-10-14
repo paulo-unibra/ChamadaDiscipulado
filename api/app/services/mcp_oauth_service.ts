@@ -6,6 +6,7 @@ import env from '#start/env'
 export const MCP_SCOPES = [
   'congregations:read',
   'converts:read',
+  'converts:write',
   'classes:read',
   'attendance:read',
   'offline_access',

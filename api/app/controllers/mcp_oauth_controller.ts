@@ -22,6 +22,7 @@ import {
 const PERMISSION_DESCRIPTIONS: Record<string, string> = {
   'congregations:read': 'Ver as congregações que sua conta pode acessar.',
   'converts:read': 'Consultar dados cadastrais de novos convertidos.',
+  'converts:write': 'Cadastrar novos convertidos na congregação autorizada.',
   'classes:read': 'Consultar turmas e vínculos de alunos.',
   'attendance:read': 'Consultar registros de frequência e presença.',
   'offline_access': 'Manter a conexão ativa usando tokens de renovação.',

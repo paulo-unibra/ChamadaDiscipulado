@@ -48,11 +48,12 @@ O ChatGPT exige conectividade HTTPS pública para o servidor MCP. O fluxo pode v
 
 - `congregations:read`: lista as congregações autorizadas.
 - `converts:read`: busca convertidos e lista os sem correspondência de aluno.
+- `converts:write`: cria novos cadastros de convertidos.
 - `classes:read`: consulta turmas.
 - `attendance:read`: consulta frequência.
 - `offline_access`: permite renovar a conexão sem novo login frequente.
 
-Ferramentas disponíveis: `get_profile`, `list_congregations`, `search_new_converts`, `list_converts_without_discipleship`, `list_classes` e `query_attendance`. Todas são somente leitura. Cada chamada consulta o token, validade, resource, escopo e a associação do usuário com a congregação solicitada.
+Ferramentas disponíveis: `get_profile`, `list_congregations`, `search_new_converts`, `create_new_convert`, `list_converts_without_discipleship`, `list_classes` e `query_attendance`. O cadastro exige `converts:write`, valida os campos e registra a ação na auditoria. O ChatGPT deve pedir confirmação explícita antes de cadastrar; mantenha a aprovação da ação de escrita habilitada nas configurações do app. Cada chamada consulta token, validade, resource, escopo e associação do usuário com a congregação solicitada.
 
 ### Modelo de permissões atual
 

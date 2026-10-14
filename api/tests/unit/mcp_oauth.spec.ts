@@ -7,6 +7,7 @@ import {
   verifyPkce,
 } from '#services/mcp_oauth_service'
 import { resolveAuthorizedCongregation } from '#controllers/mcp_controller'
+import { NewConvertValidationError, validateNewConvert } from '#services/new_convert_service'
 
 test.group('MCP OAuth security primitives', () => {
   test('validates PKCE S256 and rejects a mismatched verifier', ({ assert }) => {
@@ -70,5 +71,38 @@ test.group('MCP OAuth security primitives', () => {
     assert.equal(resolveAuthorizedCongregation(available, 'c-1'), 'c-1')
     assert.throws(() => resolveAuthorizedCongregation(available, 'c-3'), /não tem acesso/)
     assert.throws(() => resolveAuthorizedCongregation([], 'c-1'), /não possui congregações/)
+  })
+
+  test('validates and normalizes a new-convert registration', ({ assert }) => {
+    const record = validateNewConvert({
+      name: '  Maria da Silva  ',
+      eventName: 'Culto de Oração',
+      conversionDate: '2026-10-13',
+      birthDate: '1990-02-03',
+      cep: '12345-678',
+      state: 'pe',
+    })
+    assert.equal(record.name, 'Maria da Silva')
+    assert.equal(record.cep, '12345678')
+    assert.equal(record.state, 'PE')
+    assert.throws(
+      () =>
+        validateNewConvert({
+          name: 'Maria',
+          eventName: 'Atividade inválida',
+          conversionDate: '2026-10-13',
+        }),
+      NewConvertValidationError
+    )
+    assert.throws(
+      () =>
+        validateNewConvert({
+          name: 'Maria',
+          eventName: 'Culto de Oração',
+          conversionDate: '2026-10-13',
+          birthDate: '2026-10-14',
+        }),
+      /posterior à conversão/
+    )
   })
 })
