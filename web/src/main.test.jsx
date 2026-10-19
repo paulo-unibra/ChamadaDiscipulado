@@ -72,6 +72,77 @@ describe('navegação em telas menores', () => {
   });
 });
 
+describe('aulas disponíveis para chamada', () => {
+  function mountAttendance(records = []) {
+    const data = state('cong-zumbi-pacheco-1');
+    data.classes = [
+      { id: 'class-a', name: 'Turma A', studentIds: [] },
+      { id: 'class-b', name: 'Turma B', studentIds: [] },
+    ];
+    data.teachers = [{ id: 'teacher-1', name: 'Professor João' }];
+    data.attendanceRecords = records;
+    window.history.replaceState({}, '', '/chamadas');
+    fetch.mockImplementation(async (input, options) => {
+      const url = new URL(input);
+      if (url.pathname === '/school/attendance' && options?.method === 'POST') {
+        data.attendanceRecords = [...data.attendanceRecords, { id: 'new-attendance', ...JSON.parse(options.body) }];
+        return new Response(JSON.stringify(data), { status: 200 });
+      }
+      return new Response(JSON.stringify(url.pathname === '/school/state' ? data : payloadFor(url)), { status: 200 });
+    });
+    mount();
+  }
+
+  it('oculta apenas as aulas já registradas na turma selecionada', async () => {
+    mountAttendance([
+      { id: 'attendance-a', classId: 'class-a', lessonName: 'Lição original', date: '2026-10-11' },
+      { id: 'attendance-b', classId: 'class-b', lessonName: 'Lição editada', date: '2026-10-11' },
+    ]);
+    const theme = await screen.findByRole('combobox', { name: 'Tema do encontro' });
+    await waitFor(() => expect(theme).toHaveValue('Lição editada'));
+    expect(within(theme).queryByRole('option', { name: 'Lição original' })).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Turma', exact: true }), 'class-b');
+    expect(theme).toHaveValue('Lição original');
+    expect(within(theme).queryByRole('option', { name: 'Lição editada' })).not.toBeInTheDocument();
+  });
+
+  it('não envia uma aula escolhida em outra turma que já tenha chamada na turma atual', async () => {
+    mountAttendance([{ id: 'attendance-a', classId: 'class-a', lessonName: 'Lição original', date: '2026-10-11' }]);
+    const theme = await screen.findByRole('combobox', { name: 'Tema do encontro' });
+    await waitFor(() => expect(theme).toBeEnabled());
+    const group = screen.getByRole('combobox', { name: 'Turma', exact: true });
+    await userEvent.selectOptions(group, 'class-b');
+    await userEvent.selectOptions(theme, 'Lição original');
+    await userEvent.selectOptions(group, 'class-a');
+    expect(theme).toHaveValue('Lição editada');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Responsável' }), 'teacher-1');
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar encontro' }));
+    await waitFor(() => expect(fetch.mock.calls.some(([url, options]) => new URL(url).pathname === '/school/attendance' && options?.method === 'POST')).toBe(true));
+    const [, options] = fetch.mock.calls.find(([url, options]) => new URL(url).pathname === '/school/attendance' && options?.method === 'POST');
+    expect(JSON.parse(options.body)).toMatchObject({ classId: 'class-a', lessonName: 'Lição editada' });
+  });
+
+  it('retira a aula das opções imediatamente após salvar sua chamada', async () => {
+    mountAttendance();
+    const theme = await screen.findByRole('combobox', { name: 'Tema do encontro' });
+    await waitFor(() => expect(theme).toHaveValue('Lição original'));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Responsável' }), 'teacher-1');
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar encontro' }));
+    await waitFor(() => expect(theme).toHaveValue('Lição editada'));
+    expect(within(theme).queryByRole('option', { name: 'Lição original' })).not.toBeInTheDocument();
+  });
+
+  it('impede salvar quando todas as aulas da turma já têm chamada', async () => {
+    mountAttendance(['Lição original', 'Lição editada'].map((lessonName, index) => ({
+      id: `attendance-${index}`, classId: 'class-a', lessonName, date: '2026-10-11',
+    })));
+    expect(await screen.findByText('Não há aulas pendentes de chamada nesta turma.')).toBeVisible();
+    expect(screen.getByRole('combobox', { name: /Tema do encontro/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Salvar encontro' })).toBeDisabled();
+    expect(fetch.mock.calls.some(([url]) => new URL(url).pathname === '/school/attendance')).toBe(false);
+  });
+});
+
 describe('fluxos do painel', () => {
   it('exibe integração configurada sem expor a chave armazenada', async () => {
     fetch.mockImplementation(async (input) => {
