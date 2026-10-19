@@ -132,6 +132,28 @@ describe('aulas disponíveis para chamada', () => {
     expect(within(theme).queryByRole('option', { name: 'Lição original' })).not.toBeInTheDocument();
   });
 
+  it('mostra no histórico apenas os encontros da turma selecionada e atualiza ao trocar', async () => {
+    mountAttendance([
+      { id: 'attendance-a', classId: 'class-a', lessonName: 'Encontro exclusivo A', date: '2026-10-11' },
+      { id: 'attendance-b', classId: 'class-b', lessonName: 'Encontro exclusivo B', date: '2026-10-18' },
+    ]);
+    const history = within((await screen.findByRole('heading', { name: 'Histórico recente' })).closest('section'));
+    expect(await history.findByText(/Encontro exclusivo A/)).toBeVisible();
+    expect(history.queryByText(/Encontro exclusivo B/)).not.toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Turma', exact: true }), 'class-b');
+    expect(history.getByText(/Encontro exclusivo B/)).toBeVisible();
+    expect(history.queryByText(/Encontro exclusivo A/)).not.toBeInTheDocument();
+  });
+
+  it('mostra histórico vazio para turma sem chamadas mesmo com registros em outra turma', async () => {
+    mountAttendance([{ id: 'attendance-a', classId: 'class-a', lessonName: 'Encontro da turma A', date: '2026-10-11' }]);
+    const history = within((await screen.findByRole('heading', { name: 'Histórico recente' })).closest('section'));
+    await history.findByText(/Encontro da turma A/);
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Turma', exact: true }), 'class-b');
+    expect(history.getByText('Nenhum encontro registrado nesta turma')).toBeVisible();
+    expect(history.queryByText(/Encontro da turma A/)).not.toBeInTheDocument();
+  });
+
   it('impede salvar quando todas as aulas da turma já têm chamada', async () => {
     mountAttendance(['Lição original', 'Lição editada'].map((lessonName, index) => ({
       id: `attendance-${index}`, classId: 'class-a', lessonName, date: '2026-10-11',
