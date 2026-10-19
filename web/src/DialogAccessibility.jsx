@@ -6,6 +6,7 @@ export function DialogAccessibility({ children }) {
   useEffect(() => {
     let currentDialog = null;
     let returnFocus = null;
+    const previousOverflow = document.body.style.overflow;
     const synchronize = () => {
       const dialogs = [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')];
       const next = dialogs.at(-1) || null;
@@ -13,9 +14,10 @@ export function DialogAccessibility({ children }) {
       if (!next && returnFocus?.isConnected) returnFocus.focus();
       if (next && !currentDialog) returnFocus = document.activeElement;
       currentDialog = next;
+      document.body.style.overflow = next ? 'hidden' : previousOverflow;
       if (next) {
         next.setAttribute('tabindex', '-1');
-        const initial = next.querySelector('input:not(:disabled), textarea:not(:disabled), select:not(:disabled)') || next.querySelector(focusableSelector) || next;
+        const initial = (next.matches('.sidebar') ? next.querySelector('button') : next.querySelector('input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')) || next.querySelector(focusableSelector) || next;
         initial.focus();
       }
     };
@@ -37,7 +39,7 @@ export function DialogAccessibility({ children }) {
     observer.observe(document.body, { childList: true, subtree: true });
     document.addEventListener('keydown', handleKey, true);
     synchronize();
-    return () => { observer.disconnect(); document.removeEventListener('keydown', handleKey, true); };
+    return () => { observer.disconnect(); document.removeEventListener('keydown', handleKey, true); document.body.style.overflow = previousOverflow; };
   }, []);
   return children;
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspaceRoot } from './main';
@@ -46,6 +46,31 @@ beforeEach(() => {
 function mount() {
   return render(<React.StrictMode><ErrorBoundary><DialogAccessibility><WorkspaceRoot/></DialogAccessibility></ErrorBoundary></React.StrictMode>);
 }
+
+describe('navegação em telas menores', () => {
+  it('abre o menu, mantém o foco dentro dele e devolve o foco ao fechar', async () => {
+    mount();
+    const trigger = await screen.findByRole('button', { name: 'Abrir menu', exact: true });
+    await userEvent.click(trigger);
+    const menu = await screen.findByRole('dialog', { name: 'Navegação principal' });
+    await waitFor(() => expect(menu).toContainElement(document.activeElement));
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(document.body.style.overflow).toBe('hidden');
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Navegação principal' })).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(document.body.style.overflow).toBe('');
+  });
+
+  it('fecha o menu ao selecionar uma tela e preserva a navegação', async () => {
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Abrir menu', exact: true }));
+    const menu = await screen.findByRole('dialog', { name: 'Navegação principal' });
+    await userEvent.click(within(menu).getByRole('button', { name: 'Visão geral' }));
+    expect(await screen.findByRole('heading', { name: 'Visão geral', exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Navegação principal' })).not.toBeInTheDocument();
+  });
+});
 
 describe('fluxos do painel', () => {
   it('exibe integração configurada sem expor a chave armazenada', async () => {

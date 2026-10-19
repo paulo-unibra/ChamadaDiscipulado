@@ -165,7 +165,8 @@ export default function PermissionsPage({ congregationId, congregationName }) {
           </div>
         </header>
 
-        <div className="permissions-matrix-wrap">
+        <p className="permissions-scroll-hint">Deslize a tabela para ver todas as ações.</p>
+        <div className="permissions-matrix-wrap" role="region" aria-label="Permissões por funcionalidade e ação">
           <table className="permissions-matrix">
             <thead><tr><th scope="col">Funcionalidade</th>{['view', 'create', 'edit', 'delete', 'export', 'generate'].map((action) => <th scope="col" key={action}>{actionLabels[action]}</th>)}</tr></thead>
             {Object.entries(groupedFeatures).map(([group, groupFeatures]) => <tbody key={group}>
