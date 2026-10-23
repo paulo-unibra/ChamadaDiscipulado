@@ -71,3 +71,16 @@ MCP_PUBLIC_URL=https://discipulado.bibliafoco.com.br HOST=127.0.0.1 node ace tes
 ```
 
 Os testes cobrem metadados, descoberta das ferramentas, handshake Streamable HTTP, PKCE, callbacks DCR e rejeição de redirects externos. O fluxo que envia o código depende da configuração real de e-mail; a troca e revogação completas de tokens dependem do banco de dados. Faça esse teste de ponta a ponta no app em rascunho após aplicar a migração e configurar Resend.
+
+## Questionários do discipulado
+
+O questionário é elaborado na conversa com o GPT e enviado pronto pelo MCP.
+
+- `list_discipleship_lessons`: consulta a escala e o conteúdo das lições por `classId`.
+- `create_quiz`: recebe `classId`, `scheduleId` e `questions` (1 a 30 perguntas). Cada pergunta contém `question`, `options` (quatro alternativas distintas em ordem A–D), `correctAnswer` (A, B, C ou D) e `explanation` opcional. Salva imediatamente com status `completed`, sem chave de IA ou worker.
+- `list_quizzes`: lista com paginação (`page`, `limit`) e filtros opcionais `classId`, `scheduleId` e `status`.
+- `get_quiz`: recebe `quizId` e retorna status, perguntas, gabarito e eventual erro.
+
+Todas aceitam `congregationId`, obrigatório quando a conta possui mais de uma congregação. As consultas exigem `quizzes:read`; a criação exige `quizzes:write`. Após publicar a API, atualize a descoberta de ferramentas do conector e autorize os novos escopos. Conexões antigas precisam de nova autorização para usar as ferramentas de questionários.
+
+Cada chamada de criação salva um novo questionário e registra auditoria. A geração automática existente na aplicação continua usando sua integração e fila próprias.

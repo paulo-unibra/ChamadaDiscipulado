@@ -25,6 +25,8 @@ const PERMISSION_DESCRIPTIONS: Record<string, string> = {
   'converts:write': 'Cadastrar novos convertidos na congregação autorizada.',
   'classes:read': 'Consultar turmas e vínculos de alunos.',
   'attendance:read': 'Consultar registros de frequência e presença.',
+  'quizzes:read': 'Consultar lições e questionários do discipulado.',
+  'quizzes:write': 'Gerar questionários com a integração de IA da congregação.',
   'offline_access': 'Manter a conexão ativa usando tokens de renovação.',
 }
 

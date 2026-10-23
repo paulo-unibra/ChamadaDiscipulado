@@ -9,6 +9,8 @@ export const MCP_SCOPES = [
   'converts:write',
   'classes:read',
   'attendance:read',
+  'quizzes:read',
+  'quizzes:write',
   'offline_access',
 ] as const
 

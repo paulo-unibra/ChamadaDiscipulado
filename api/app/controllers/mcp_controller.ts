@@ -1,3 +1,4 @@
+import { createQuiz, serializeQuiz, QuizValidationError } from '#services/quiz_service'
 import type { HttpContext } from '@adonisjs/core/http'
 import { randomUUID } from 'node:crypto'
 import db from '@adonisjs/lucid/services/db'
@@ -17,6 +18,10 @@ const TOOL_SCOPES: Record<string, string> = {
   list_converts_without_discipleship: 'converts:read',
   list_classes: 'classes:read',
   query_attendance: 'attendance:read',
+  list_discipleship_lessons: 'quizzes:read',
+  list_quizzes: 'quizzes:read',
+  get_quiz: 'quizzes:read',
+  create_quiz: 'quizzes:write',
 }
 const PROTOCOL_VERSIONS = ['2025-03-26', '2025-06-18', '2025-11-25']
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
@@ -42,7 +47,97 @@ function toolError(message: string, challenge?: string) {
 
 function toolDefinitions() {
   const scope = (value: string) => [{ type: 'oauth2', scopes: [value] }]
+  const quizTools = [
+    {
+      name: 'list_discipleship_lessons',
+      title: 'Consultar lições da turma',
+      description:
+        'Lista as lições da escala de uma turma autorizada, incluindo o conteúdo usado para gerar questionários.',
+      properties: {
+        classId: { type: 'string', minLength: 1 },
+        limit: { type: 'integer', minimum: 1, maximum: 100 },
+      },
+      required: ['classId'],
+    },
+    {
+      name: 'list_quizzes',
+      title: 'Listar questionários',
+      description:
+        'Lista questionários da congregação, com filtros opcionais por turma, lição e status. Use get_quiz para consultar perguntas e gabarito.',
+      properties: {
+        classId: { type: 'string' },
+        scheduleId: { type: 'string' },
+        status: { type: 'string', enum: ['pending', 'processing', 'completed', 'failed'] },
+        page: { type: 'integer', minimum: 1 },
+        limit: { type: 'integer', minimum: 1, maximum: 100 },
+      },
+      required: [],
+    },
+    {
+      name: 'get_quiz',
+      title: 'Consultar questionário',
+      description:
+        'Consulta status, perguntas e gabarito de um questionário autorizado. Para geração em andamento, consulte novamente depois.',
+      properties: { quizId: { type: 'string', minLength: 1 } },
+      required: ['quizId'],
+    },
+    {
+      name: 'create_quiz',
+      title: 'Criar questionário do discipulado',
+      description:
+        'Salva um questionário pronto criado nesta conversa, vinculado à turma e lição informadas. Envie todas as perguntas, quatro alternativas por pergunta, gabarito e explicação opcional. Não chama APIs de IA. Retorna status completed. Cada chamada cria um novo questionário.',
+      properties: {
+        classId: { type: 'string', minLength: 1 },
+        scheduleId: { type: 'string', minLength: 1 },
+        questions: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 30,
+          items: {
+            type: 'object',
+            properties: {
+              question: { type: 'string', minLength: 1, maxLength: 5000 },
+              options: {
+                type: 'array',
+                minItems: 4,
+                maxItems: 4,
+                uniqueItems: true,
+                items: { type: 'string', minLength: 1, maxLength: 2000 },
+              },
+              correctAnswer: {
+                type: 'string',
+                enum: ['A', 'B', 'C', 'D'],
+                description: 'Letra da alternativa correta, na ordem de options.',
+              },
+              explanation: { type: 'string', maxLength: 5000 },
+            },
+            required: ['question', 'options', 'correctAnswer'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['classId', 'scheduleId', 'questions'],
+    },
+  ].map((tool) => ({
+    name: tool.name,
+    title: tool.title,
+    description: tool.description,
+    inputSchema: {
+      type: 'object',
+      properties: { congregationId: { type: 'string' }, ...tool.properties },
+      required: tool.required,
+      additionalProperties: false,
+    },
+    securitySchemes: scope(TOOL_SCOPES[tool.name]),
+    annotations: {
+      readOnlyHint: tool.name !== 'create_quiz',
+      destructiveHint: false,
+      idempotentHint: tool.name !== 'create_quiz',
+      openWorldHint: false,
+    },
+  }))
   return [
+    ...quizTools,
     {
       name: 'get_profile',
       title: 'Identificar a conta conectada',
@@ -394,9 +489,9 @@ export default class McpController {
         jsonrpc: '2.0',
         id: rpc.id,
         result: toolError(
-          error instanceof NewConvertValidationError
+          error instanceof NewConvertValidationError || error instanceof QuizValidationError
             ? error.message
-            : error instanceof Error && name !== 'create_new_convert'
+            : error instanceof Error && !['create_new_convert', 'create_quiz'].includes(name)
               ? error.message
               : 'Não foi possível executar esta ferramenta.'
         ),
@@ -427,6 +522,91 @@ export default class McpController {
     }
     const requestedId = text(args.congregationId)
     const congregationId = await this.authorizedCongregation(email, requestedId)
+    if (['list_discipleship_lessons', 'list_quizzes', 'get_quiz', 'create_quiz'].includes(name)) {
+      for (const field of ['classId', 'scheduleId', 'quizId']) {
+        if (args[field] !== undefined && (typeof args[field] !== 'string' || !text(args[field])))
+          throw new QuizValidationError('Informe um ' + field + ' válido.')
+      }
+      if (['create_quiz', 'list_discipleship_lessons'].includes(name) && !text(args.classId))
+        throw new QuizValidationError('Informe classId.')
+      if (name === 'create_quiz') {
+        if (!text(args.scheduleId)) throw new QuizValidationError('Informe scheduleId.')
+        const quiz = await createQuiz(
+          congregationId,
+          text(args.classId),
+          text(args.scheduleId),
+          args.questions,
+          {
+            ip: request.ip() || null,
+            userAgent: (request.header('user-agent') || '').slice(0, 255) || null,
+          }
+        )
+        return { congregationId, quiz }
+      }
+      if (name === 'list_discipleship_lessons') {
+        const rows = await db
+          .from('discipleship_schedule as schedule')
+          .innerJoin('classes', 'classes.id', 'schedule.class_id')
+          .where('schedule.congregation_id', congregationId)
+          .where('classes.congregation_id', congregationId)
+          .whereNull('classes.deleted_at')
+          .where('schedule.class_id', text(args.classId))
+          .select(
+            'schedule.id as scheduleId',
+            'schedule.class_id as classId',
+            'schedule.title',
+            'schedule.lesson_date as lessonDate',
+            'schedule.content'
+          )
+          .orderBy('schedule.lesson_date', 'desc')
+          .limit(intLimit(args.limit, 50, 100))
+        return { congregationId, lessons: rows }
+      }
+      const query = db.from('discipleship_quizzes').where('congregation_id', congregationId)
+      if (name === 'get_quiz') {
+        if (!text(args.quizId)) throw new QuizValidationError('Informe quizId.')
+        const row = await query.where('id', text(args.quizId)).first()
+        if (!row) throw new QuizValidationError('Questionário não encontrado nesta congregação.')
+        return { congregationId, quiz: serializeQuiz(row) }
+      }
+      if (
+        args.status !== undefined &&
+        !['pending', 'processing', 'completed', 'failed'].includes(String(args.status))
+      )
+        throw new QuizValidationError('Status inválido.')
+      if (text(args.classId)) query.where('class_id', text(args.classId))
+      if (text(args.scheduleId)) query.where('schedule_id', text(args.scheduleId))
+      if (text(args.status)) query.where('status', text(args.status))
+      const page = intLimit(args.page, 1, 100000)
+      const limit = intLimit(args.limit, 25, 100)
+      const [{ total }] = await query.clone().count('* as total')
+      const rows = await query
+        .select(
+          'id',
+          'class_id',
+          'schedule_id',
+          'lesson_title',
+          'provider',
+          'question_count',
+          'status',
+          'error_message',
+          'created_at'
+        )
+        .orderBy('created_at', 'desc')
+        .orderBy('id', 'desc')
+        .offset((page - 1) * limit)
+        .limit(limit)
+      return {
+        congregationId,
+        quizzes: rows.map((row) => {
+          const { questions, ...summary } = serializeQuiz(row)
+          return summary
+        }),
+        page,
+        limit,
+        total: Number(total),
+      }
+    }
     if (name === 'create_new_convert') {
       return db.transaction(async (trx) => {
         const created = await createNewConvert(trx, args, congregationId)
