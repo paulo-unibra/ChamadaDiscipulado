@@ -6,6 +6,7 @@ import { CONVERSION_EVENTS } from '#services/conversion_events'
 import {
   getCongregationsForAdmin,
   mcpResource,
+  persistentConnectionScopes,
   validateAccessToken,
 } from '#services/mcp_oauth_service'
 import { createNewConvert, NewConvertValidationError } from '#services/new_convert_service'
@@ -46,7 +47,7 @@ function toolError(message: string, challenge?: string) {
 }
 
 function toolDefinitions() {
-  const scope = (value: string) => [{ type: 'oauth2', scopes: [value] }]
+  const scope = (value: string) => [{ type: 'oauth2', scopes: persistentConnectionScopes([value]) }]
   const quizTools = [
     {
       name: 'list_discipleship_lessons',
@@ -445,7 +446,7 @@ export default class McpController {
     const { name, arguments: args } = params as Record<string, unknown>
     if (typeof name !== 'string' || !(name in TOOL_SCOPES))
       return rpcError(rpc.id, -32602, 'Ferramenta desconhecida.')
-    const challenge = `Bearer resource_metadata="${mcpResource().replace(/\/mcp$/, '/.well-known/oauth-protected-resource/mcp')}", scope="${TOOL_SCOPES[name]}", error="invalid_token", error_description="Conecte sua conta para usar esta ferramenta"`
+    const challenge = `Bearer resource_metadata="${mcpResource().replace(/\/mcp$/, '/.well-known/oauth-protected-resource/mcp')}", scope="${persistentConnectionScopes([TOOL_SCOPES[name]]).join(' ')}", error="invalid_token", error_description="Conecte sua conta para usar esta ferramenta"`
     const tokenString = request.header('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1] ?? ''
     const token = await validateAccessToken(tokenString, mcpResource())
     if (!token) {
@@ -462,7 +463,12 @@ export default class McpController {
       }
     }
     if (!hasScope(token, TOOL_SCOPES[name])) {
-      const scopedChallenge = `${challenge}, error="insufficient_scope", error_description="Permissão ausente"`
+      const scopedChallenge = challenge
+        .replace('error="invalid_token"', 'error="insufficient_scope"')
+        .replace(
+          'error_description="Conecte sua conta para usar esta ferramenta"',
+          'error_description="Permissão ausente"'
+        )
       return {
         jsonrpc: '2.0',
         id: rpc.id,

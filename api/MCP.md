@@ -84,3 +84,11 @@ O questionário é elaborado na conversa com o GPT e enviado pronto pelo MCP.
 Todas aceitam `congregationId`, obrigatório quando a conta possui mais de uma congregação. As consultas exigem `quizzes:read`; a criação exige `quizzes:write`. Após publicar a API, atualize a descoberta de ferramentas do conector e autorize os novos escopos. Conexões antigas precisam de nova autorização para usar as ferramentas de questionários.
 
 Cada chamada de criação salva um novo questionário e registra auditoria. A geração automática existente na aplicação continua usando sua integração e fila próprias.
+
+## Conexão persistente
+
+Todas as ferramentas anunciam `offline_access` junto da permissão de dados. Mesmo se o cliente omitir esse escopo, o fluxo de autorização o inclui na tela de consentimento antes de emitir o código. Aprovar a conexão autoriza a renovação automática; isso não amplia as permissões de dados solicitadas.
+
+O token de acesso dura 15 minutos. O refresh token é rotacionado a cada renovação e tem validade de 30 dias a partir da emissão. Uma conexão em uso pode continuar renovando sem novo login; desconexão/revogação, expiração do refresh token ou detecção de reutilização exigem nova autorização.
+
+Conexões antigas emitidas sem refresh token precisam ser reconectadas uma vez. Atualize também a descoberta das ferramentas no ChatGPT para carregar os escopos anunciados.

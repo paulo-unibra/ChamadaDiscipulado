@@ -74,7 +74,11 @@ test.group('ChatGPT MCP discovery and transport', () => {
       ]
     )
     assert.isTrue(
-      tools.every((tool) => tool.securitySchemes.some((scheme) => scheme.type === 'oauth2'))
+      tools.every((tool) =>
+        tool.securitySchemes.some(
+          (scheme) => scheme.type === 'oauth2' && scheme.scopes.includes('offline_access')
+        )
+      )
     )
     const createTool = tools.find((tool) => tool.name === 'create_new_convert')
     assert.isFalse(createTool?.annotations?.readOnlyHint)
@@ -100,6 +104,7 @@ test.group('ChatGPT MCP discovery and transport', () => {
       response.assertStatus(200)
       assert.isTrue(response.body().result.isError)
       assert.include(response.body().result._meta['mcp/www_authenticate'][0], 'quizzes:')
+      assert.include(response.body().result._meta['mcp/www_authenticate'][0], 'offline_access')
     })
   }
 

@@ -14,6 +14,11 @@ export const MCP_SCOPES = [
   'offline_access',
 ] as const
 
+// Include persistent access in the permissions shown before the user approves the connection.
+export function persistentConnectionScopes(requested: string[]) {
+  return Array.from(new Set([...requested, 'offline_access']))
+}
+
 const ACCESS_TOKEN_SECONDS = 15 * 60
 const REFRESH_TOKEN_SECONDS = 30 * 24 * 60 * 60
 const FLOW_SECONDS = 15 * 60

@@ -12,6 +12,7 @@ import {
   MCP_SCOPES,
   mcpBaseUrl,
   mcpResource,
+  persistentConnectionScopes,
   refreshAccessToken,
   registerClient,
   revokeToken,
@@ -26,7 +27,7 @@ const PERMISSION_DESCRIPTIONS: Record<string, string> = {
   'classes:read': 'Consultar turmas e vínculos de alunos.',
   'attendance:read': 'Consultar registros de frequência e presença.',
   'quizzes:read': 'Consultar lições e questionários do discipulado.',
-  'quizzes:write': 'Gerar questionários com a integração de IA da congregação.',
+  'quizzes:write': 'Salvar questionários prontos na congregação autorizada.',
   'offline_access': 'Manter a conexão ativa usando tokens de renovação.',
 }
 
@@ -189,7 +190,7 @@ export default class McpOauthController {
       redirectUri,
       state,
       codeChallenge: challenge,
-      scopes: Array.from(new Set(requestedScopes)),
+      scopes: persistentConnectionScopes(requestedScopes),
       resource,
     })
     return htmlPage(
@@ -319,7 +320,7 @@ export default class McpOauthController {
       response,
       page(
         'Autorizar ChatGPT',
-        `<h1>Autorizar ${escapeHtml(clientName)}?</h1><p>Esta conexão permitirá ao ChatGPT acessar as informações abaixo da sua conta:</p><ul class="permissions">${permissions}</ul><p>A autorização vale para a conta conectada. O acesso aos dados continua limitado às congregações associadas a ela.</p><form method="post" action="/oauth/authorize"><input type="hidden" name="flow_id" value="${escapeHtml(flowId)}"><input type="hidden" name="action" value="consent"><button name="decision" value="approve" type="submit">Autorizar conexão</button><button class="secondary" name="decision" value="deny" type="submit">Recusar</button></form>`
+        `<h1>Autorizar ${escapeHtml(clientName)}?</h1><p>Esta conexão permitirá ao ChatGPT acessar as informações abaixo da sua conta:</p><ul class="permissions">${permissions}</ul><p>A conexão será renovada automaticamente para evitar novos logins a cada 15 minutos. Você pode desconectá-la pelo ChatGPT a qualquer momento. O acesso aos dados continua limitado às congregações associadas à conta.</p><form method="post" action="/oauth/authorize"><input type="hidden" name="flow_id" value="${escapeHtml(flowId)}"><input type="hidden" name="action" value="consent"><button name="decision" value="approve" type="submit">Autorizar conexão</button><button class="secondary" name="decision" value="deny" type="submit">Recusar</button></form>`
       )
     )
   }
